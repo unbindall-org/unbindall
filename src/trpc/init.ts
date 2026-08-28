@@ -1,5 +1,9 @@
 import { initTRPC, TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import type { Session } from "next-auth";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { hasRole, type UserRole } from "@/features/auth/domain/roles";
 
 export type TRPCContext = {
   session: Session | null;
@@ -26,3 +30,24 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
     },
   });
 });
+
+function procedureForRole(requiredRole: UserRole) {
+  return protectedProcedure.use(async ({ ctx, next }) => {
+    const [user] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, ctx.userId))
+      .limit(1);
+
+    if (!user || !hasRole(user.role, requiredRole)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Keine Berechtigung für diesen Bereich." });
+    }
+
+    return next({ ctx: { ...ctx, role: user.role } });
+  });
+}
+
+export const moderatorProcedure = procedureForRole("moderator");
+export const platformAdminProcedure = procedureForRole("platform_admin");
+// Existing catalog procedures use this name; platform admins are the admin role.
+export const adminProcedure = platformAdminProcedure;

@@ -2,10 +2,9 @@ import { createContext, createElement, useContext, useState, type ReactNode } fr
 import { useStore } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore, type Mutate, type StoreApi } from "zustand/vanilla";
-import { commands, isCommandEditable } from "../catalog/commands";
+import { commands, isCommandEditable, type CommandDefinition } from "../catalog/commands";
 import { createDefaultDocument, normalizeDocument } from "../domain/document";
 import type { ConfigType, GeneratorDocument } from "../domain/types";
-import type { GeneratorModuleId } from "../modules/registry";
 
 export type CloudOrigin = {
   type: "cloud";
@@ -46,26 +45,27 @@ export type HydratedDraft = {
 };
 
 export type GeneratorEditorState = {
+  catalog: CommandDefinition[];
   document: GeneratorDocument;
   name: string;
   origin: EditorOrigin;
   sync: SyncState;
   hydration: "pending" | "ready" | "failed";
   query: string;
-  activeCategory: "all" | GeneratorModuleId;
-  configPanelOpen: boolean;
+  /** Whether the editor shows the full catalog in addition to active parts. */
+  showAllCommands: boolean;
   sliderActive: boolean;
 };
 
 export type GeneratorEditorActions = {
+  replaceCatalog(catalog: CommandDefinition[]): void;
   hydrateDraft(draft: HydratedDraft): void;
   hydrationFailed(): void;
   replaceDocument(document: GeneratorDocument): void;
   updateCommand(name: string, value: string | number | boolean): void;
   setName(name: string): void;
   setQuery(query: string): void;
-  setActiveCategory(category: "all" | GeneratorModuleId): void;
-  setConfigPanelOpen(open: boolean): void;
+  setShowAllCommands(showAll: boolean): void;
   setSliderActive(active: boolean): void;
   createAnonymousDocument(configType: ConfigType, name: string): void;
   importDocument(document: GeneratorDocument, name?: string): void;
@@ -97,22 +97,26 @@ function editedSyncState(state: GeneratorEditorState): SyncState {
   return { status: "dirty", dirtySince };
 }
 
-export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorState>) {
+export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorState>, commandCatalog: CommandDefinition[] = commands) {
   return createStore<GeneratorEditorStore>()(subscribeWithSelector((set) => ({
-    document: createDefaultDocument(),
+    catalog: commandCatalog,
+    document: createDefaultDocument("matchmaking", commandCatalog),
     name: "Meine Matchmaking Config",
     origin: { type: "anonymous" },
     sync: { status: "hydrating" },
     hydration: "pending",
     query: "",
-    activeCategory: "all",
-    configPanelOpen: true,
+    showAllCommands: true,
     sliderActive: false,
     ...initial,
 
+    replaceCatalog(catalog) {
+      set((state) => ({ catalog, document: normalizeDocument(state.document, catalog) }));
+    },
+
     hydrateDraft(draft) {
       set((state) => {
-        const document = draft.document ? normalizeDocument(draft.document) : state.document;
+        const document = draft.document ? normalizeDocument(draft.document, state.catalog) : state.document;
         const name = draft.name ?? state.name;
         const origin: EditorOrigin = draft.cloud
           ? { type: "cloud", ...draft.cloud, validated: false }
@@ -132,13 +136,13 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
     },
 
     replaceDocument(document) {
-      set((state) => ({ document: normalizeDocument(document), sync: editedSyncState(state) }));
+      set((state) => ({ document: normalizeDocument(document, state.catalog), sync: editedSyncState(state) }));
     },
 
     updateCommand(name, value) {
       set((state) => {
         const commandName = name.startsWith("enabled:") ? name.slice("enabled:".length) : name;
-        const command = commands.find((item) => item.name === commandName);
+        const command = state.catalog.find((item) => item.name === commandName);
         if (!command || !isCommandEditable(command)) return state;
         const commandValues = { ...state.document.commandValues, [name]: value };
         if (name === "cl_crosshaircolor" && Number(value) === 5) {
@@ -157,29 +161,28 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
       set((state) => ({ name, sync: editedSyncState(state) }));
     },
     setQuery(query) { set({ query }); },
-    setActiveCategory(activeCategory) { set({ activeCategory }); },
-    setConfigPanelOpen(configPanelOpen) { set({ configPanelOpen }); },
+    setShowAllCommands(showAllCommands) { set({ showAllCommands }); },
     setSliderActive(sliderActive) { set({ sliderActive }); },
 
     createAnonymousDocument(configType, name) {
-      set({
-        document: createDefaultDocument(configType),
+      set((state) => ({
+        document: createDefaultDocument(configType, state.catalog),
         name,
         origin: { type: "anonymous" },
         sync: { status: "local" },
         query: "",
-        activeCategory: "all",
-      });
+        showAllCommands: true,
+      }));
     },
 
     importDocument(document, name) {
       set((state) => ({
-        document: normalizeDocument(document),
+        document: normalizeDocument(document, state.catalog),
         name: name ?? state.name,
         origin: { type: "anonymous" },
         sync: { status: "local" },
         query: "",
-        activeCategory: "all",
+        showAllCommands: true,
       }));
     },
 
@@ -188,9 +191,10 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
     },
 
     loadCloudConfig(config) {
-      const document = normalizeDocument(config.values);
+      set((state) => {
+      const document = normalizeDocument(config.values, state.catalog);
       const fingerprint = editorFingerprint(config.name, document);
-      set({
+      return {
         document,
         name: config.name,
         origin: {
@@ -202,7 +206,8 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
         },
         sync: { status: "saved", savedAt: config.updatedAt },
         query: "",
-        activeCategory: "all",
+        showAllCommands: true,
+      };
       });
     },
 
@@ -266,9 +271,10 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
     },
 
     manualSaveSucceeded(config) {
-      const document = normalizeDocument(config.values);
+      set((state) => {
+      const document = normalizeDocument(config.values, state.catalog);
       const fingerprint = editorFingerprint(config.name, document);
-      set({
+      return {
         document,
         name: config.name,
         origin: {
@@ -279,6 +285,7 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
           validated: true,
         },
         sync: { status: "saved", savedAt: config.updatedAt },
+      };
       });
     },
   })));
@@ -286,8 +293,8 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
 
 const GeneratorEditorStoreContext = createContext<GeneratorEditorStoreApi | null>(null);
 
-export function GeneratorEditorStoreProvider({ children, initialName }: { children: ReactNode; initialName: string }) {
-  const [store] = useState(() => createGeneratorEditorStore({ name: initialName }));
+export function GeneratorEditorStoreProvider({ children, initialName, catalog }: { children: ReactNode; initialName: string; catalog: CommandDefinition[] }) {
+  const [store] = useState(() => createGeneratorEditorStore({ name: initialName }, catalog));
   return createElement(GeneratorEditorStoreContext.Provider, { value: store }, children);
 }
 

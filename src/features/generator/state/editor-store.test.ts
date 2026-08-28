@@ -11,6 +11,12 @@ const cloudConfig = () => ({
 });
 
 describe("generator editor store", () => {
+  it("shows all commands by default", () => {
+    const store = createGeneratorEditorStore();
+
+    expect(store.getState().showAllCommands).toBe(true);
+  });
+
   it("rejects edits to non-verified catalog commands", () => {
     const store = createGeneratorEditorStore();
 

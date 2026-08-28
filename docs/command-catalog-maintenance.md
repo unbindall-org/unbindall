@@ -54,7 +54,7 @@ Bei jedem öffentlichen CS2-Update:
 1. öffentliche und lokale Build-ID erfassen;
 2. Datum, Plattformen und verfügbare Testkontexte festlegen;
 3. die verwendeten Dumps auf einen Commit oder ein unveränderliches Artefakt pinnen;
-4. `CS2_CATALOG_VERSION` noch nicht ändern.
+4. den aktuell veröffentlichten DB-Snapshot exportieren und `checkedVersion` noch nicht ändern.
 
 Ein globaler Versionsstring darf erst aktualisiert werden, wenn alle geänderten Commands geprüft sind. Pro Command bleibt `checkedVersion` die genauere Aussage.
 
@@ -99,12 +99,13 @@ Cheat-Tests nur in einer lokalen oder privaten Sitzung durchführen. `sv_cheats 
 
 Nach bestandenem E4-Test:
 
-1. `CommandDefinition` mit deutschem Label, Beschreibung, Typ, Default, Bereich und Einschränkungen ergänzen oder korrigieren;
+1. den Eintrag im Plattform-Adminbereich zunächst als unveröffentlichten Entwurf mit deutschen und englischen Texten, Typ, Default, Bereich, Config-Kontexten und Einschränkungen ergänzen oder korrigieren;
 2. nur sinnvolle UI-Grenzen anbieten – Engine-Minimum und -Maximum sind nicht automatisch gute Reglergrenzen;
 3. Action-Commands ohne künstliches Argument modellieren;
 4. Serializer-, Import- und Statusfälle testen;
 5. Presets separat und im vorgesehenen Kontext testen;
-6. `checkedVersion` und erst am Ende gegebenenfalls `CS2_CATALOG_VERSION` aktualisieren.
+6. `checkedVersion` aktualisieren und den Eintrag erst nach Review veröffentlichen;
+7. für reproduzierbare Neuinstallationen die TypeScript-Seed-Quelle und eine Folgemigration mit demselben geprüften Stand aktualisieren. Die SQL-Seeddaten lassen sich mit `scripts/generate-command-catalog-seed.ts` deterministisch erzeugen.
 
 Die normalen Projektprüfungen sind:
 

@@ -55,6 +55,41 @@ describe("tRPC-Router mit PostgreSQL", () => {
     ]);
   });
 
+  it("übernimmt Browser-Configs bei Namenskollision unter einem freien Namen", async () => {
+    const userId = await registeredUser();
+    const document = testDocument();
+    await caller(userId).config.create({
+      name: "Meine Competitive Config",
+      values: document,
+      rawConfig: "",
+      mutationId: crypto.randomUUID(),
+    });
+
+    await expect(caller(userId).config.create({
+      name: "Meine Competitive Config",
+      values: document,
+      rawConfig: "",
+      mutationId: crypto.randomUUID(),
+    })).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "Eine aktive Config mit diesem Namen existiert bereits.",
+    });
+
+    const transferred = await caller(userId).config.create({
+      name: "Meine Competitive Config",
+      nameConflict: "rename",
+      values: document,
+      rawConfig: "",
+      mutationId: crypto.randomUUID(),
+    });
+
+    expect(transferred.name).toBe("Meine Competitive Config (2)");
+    expect((await caller(userId).config.list()).map((config) => config.name).sort()).toEqual([
+      "Meine Competitive Config",
+      "Meine Competitive Config (2)",
+    ]);
+  });
+
   it("serialisiert parallele Autosaves und weist die veraltete Revision zurück", async () => {
     const userId = await registeredUser();
     const document = testDocument();

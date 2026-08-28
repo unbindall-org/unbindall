@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import type { Session } from "next-auth";
-import { Clipboard, Cloud, FileCode2, History, LoaderCircle, Save, Trash2, Undo2 } from "lucide-react";
+import { Clipboard, History, LoaderCircle, Save, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AccountDialog } from "@/features/auth/components/account-dialog";
 import { AuthDialog } from "@/features/auth/components/auth-dialog";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { AuthProviders } from "./generator-app";
+import type { AuthProviders } from "@/features/shell/components/app-shell";
 
 export type SavedConfigView = {
   id: string;
@@ -35,15 +35,11 @@ type Props = {
   authOpen: boolean;
   accountOpen: boolean;
   saveOpen: boolean;
-  libraryOpen: boolean;
   currentId: string | null;
   configName: string;
   enabledCount: number;
   lineCount: number;
   syncStatus: string;
-  configs: SavedConfigView[];
-  configsFetching: boolean;
-  trash: TrashedConfigView[];
   historyConfig: SavedConfigView | null;
   historyItems: RevisionView[];
   historyPending: boolean;
@@ -58,19 +54,15 @@ type Props = {
   onAuthOpenChange(open: boolean): void;
   onAccountOpenChange(open: boolean): void;
   onSaveOpenChange(open: boolean): void;
-  onLibraryOpenChange(open: boolean): void;
   onNameChange(name: string): void;
   onCheckpointLabelChange(label: string): void;
   onRecoveryTimeChange(time: string): void;
   onSave(event: FormEvent): void;
-  onLoad(config: SavedConfigView): void;
-  onOpenHistory(config: SavedConfigView): void;
   onCloseHistory(): void;
   onRestoreRevision(revision: number): void;
   onRestoreAtTime(event: FormEvent): void;
   onSelectDelete(config: SavedConfigView | null): void;
   onDelete(config: SavedConfigView): void;
-  onUndelete(config: TrashedConfigView): void;
   onSelectPermanentDelete(config: TrashedConfigView | null): void;
   onPermanentDelete(config: TrashedConfigView): void;
 };
@@ -100,38 +92,6 @@ export function GeneratorDialogs(props: Props) {
               {props.currentId ? t("Änderungen speichern") : t("Neue Config speichern")}
             </Button>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={props.libraryOpen} onOpenChange={props.onLibraryOpenChange}>
-        <DialogContent className="library-dialog">
-          <div className="library-head"><DialogHeader><p className="eyebrow">{t("DEINE CLOUD")}</p><DialogTitle>{t("Gespeicherte Configs")}</DialogTitle><DialogDescription className="muted">{t("Öffne oder verwalte deine gespeicherten Configs.")}</DialogDescription></DialogHeader></div>
-          {props.configsFetching ? <div className="library-loading"><LoaderCircle className="spin" size={22} />{t("Configs werden geladen …")}</div> : props.configs.length ? (
-            <div className="library-list">{props.configs.map((config) => (
-              <div key={config.id} className={`library-row ${config.id === props.currentId ? "current" : ""}`}>
-                <Button variant="ghost" className="library-load" onClick={() => props.onLoad(config)}>
-                  <FileCode2 size={18} />
-                  <span><strong>{config.name}</strong><small>{t("updatedAt", { date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(config.updatedAt)) })}</small></span>
-                  <small className="library-type">{t("Revision")} {config.revision}</small>
-                  {config.id === props.currentId && <Badge>{t("AKTIV")}</Badge>}
-                </Button>
-                <Button variant="ghost" className="library-delete" onClick={() => props.onOpenHistory(config)} aria-label={t("Versionsverlauf öffnen")}><History size={16} /></Button>
-                <Button variant="ghost" className="library-delete" onClick={() => props.onSelectDelete(config)} aria-label={t("deleteConfigLabel", { name: config.name })}><Trash2 size={16} /></Button>
-              </div>
-            ))}</div>
-          ) : (
-            <div className="empty-state compact"><Cloud size={26} /><h2>{t("Noch keine Config gespeichert")}</h2><p>{t("Dein aktuelles Setup wartet schon.")}</p><Button className="primary-button" onClick={() => { props.onLibraryOpenChange(false); props.onSaveOpenChange(true); }}><Save size={16} />{t("Erste Config speichern")}</Button></div>
-          )}
-          {props.trash.length > 0 && <section className="trash-section">
-            <p className="eyebrow">{t("PAPIERKORB")}</p>
-            <div className="library-list">{props.trash.map((config) => (
-              <div key={config.id} className="library-row is-trashed">
-                <div className="library-load"><Trash2 size={18} /><span><strong>{config.name}</strong><small>{t("deletedAt", { date: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(config.deletedAt!)) })}</small></span></div>
-                <Button variant="ghost" className="library-delete" onClick={() => props.onUndelete(config)} aria-label={t("Wiederherstellen")}><Undo2 size={16} /></Button>
-                <Button variant="ghost" className="library-delete" onClick={() => props.onSelectPermanentDelete(config)} aria-label={t("Endgültig löschen")}><Trash2 size={16} /></Button>
-              </div>
-            ))}</div>
-          </section>}
         </DialogContent>
       </Dialog>
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppI18nProvider } from "@/i18n/provider";
@@ -24,14 +25,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getServerLocale();
   return (
-    <html lang={locale} className={cn("dark font-sans", geist.variable, geistMono.variable)}>
+    <html lang={locale} className={cn("font-sans", geist.variable, geistMono.variable)} suppressHydrationWarning>
       <body>
-        <AppI18nProvider initialLocale={locale}>
-          <APIProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-            <Toaster theme="dark" position="bottom-center" richColors />
-          </APIProvider>
-        </AppI18nProvider>
+        <ThemeProvider>
+          <AppI18nProvider initialLocale={locale}>
+            <APIProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+              <Toaster position="bottom-center" richColors />
+            </APIProvider>
+          </AppI18nProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

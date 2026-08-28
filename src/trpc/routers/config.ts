@@ -3,8 +3,9 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, gt, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { configRevisions, configs, users, type ConfigRevisionKind, type ConfigValues } from "@/db/schema";
+import { configRevisions, configs, projects, users, type ConfigRevisionKind, type ConfigValues } from "@/db/schema";
 import { generatorDocumentSchema } from "@/features/generator/domain/schema";
+import { CONFIG_TYPES } from "@/features/generator/domain/types";
 import {
   applyJsonPatch,
   canonicalJson,
@@ -37,10 +38,12 @@ const writeInput = contentInput.extend({
 });
 
 type ConfigRow = typeof configs.$inferSelect;
-type ConfigMetadataRow = Pick<ConfigRow, "id" | "name" | "revision" | "createdAt" | "updatedAt" | "deletedAt">;
+type ConfigMetadataRow = Pick<ConfigRow, "id" | "name" | "revision" | "createdAt" | "updatedAt" | "deletedAt" | "projectId" | "configType">;
 const configMetadataSelection = {
   id: configs.id,
   name: configs.name,
+  projectId: configs.projectId,
+  configType: configs.configType,
   revision: configs.revision,
   createdAt: configs.createdAt,
   updatedAt: configs.updatedAt,
@@ -51,6 +54,8 @@ function serializeMetadata(row: ConfigMetadataRow) {
   return {
     id: row.id,
     name: row.name,
+    projectId: row.projectId,
+    configType: row.configType,
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -81,7 +86,14 @@ function mapDatabaseError(error: unknown): never {
 }
 
 function isUniqueViolation(error: unknown) {
-  return Boolean(error && typeof error === "object" && "code" in error && error.code === "23505");
+  let current = error;
+  const visited = new Set<unknown>();
+  while (current && typeof current === "object" && !visited.has(current)) {
+    visited.add(current);
+    if ("code" in current && current.code === "23505") return true;
+    current = "cause" in current ? current.cause : undefined;
+  }
+  return false;
 }
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -101,6 +113,50 @@ async function lockAccount(tx: DatabaseTransaction, userId: string) {
     .for("update")
     .limit(1);
   if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Account nicht gefunden." });
+}
+
+export const defaultProjectName = "Mein Setup";
+export const accountProjectQuota = 10;
+
+/**
+ * Every config belongs to a project. Accounts created before the project layer
+ * existed — and the very first config of a new account — get the default
+ * project lazily so no caller ever has to create one up front.
+ */
+async function resolveProjectId(tx: DatabaseTransaction, userId: string, requested?: string) {
+  if (requested) {
+    const [owned] = await tx.select({ id: projects.id }).from(projects)
+      .where(and(eq(projects.id, requested), eq(projects.userId, userId))).limit(1);
+    if (!owned) throw new TRPCError({ code: "NOT_FOUND", message: "Projekt nicht gefunden." });
+    return owned.id;
+  }
+  const [existing] = await tx.select({ id: projects.id }).from(projects)
+    .where(eq(projects.userId, userId)).orderBy(asc(projects.position), asc(projects.createdAt)).limit(1);
+  if (existing) return existing.id;
+  const [created] = await tx.insert(projects)
+    .values({ id: crypto.randomUUID(), userId, name: defaultProjectName, position: 0 })
+    .returning({ id: projects.id });
+  return created.id;
+}
+
+async function resolveConfigName(
+  tx: DatabaseTransaction,
+  userId: string,
+  requested: string,
+  conflictPolicy: "error" | "rename",
+) {
+  if (conflictPolicy === "error") return requested;
+  const rows = await tx.select({ name: configs.name }).from(configs)
+    .where(and(eq(configs.userId, userId), isNull(configs.deletedAt)));
+  const occupied = new Set(rows.map((row) => row.name));
+  if (!occupied.has(requested)) return requested;
+
+  for (let copy = 2; copy <= accountConfigQuota + 1; copy += 1) {
+    const suffix = ` (${copy})`;
+    const candidate = `${requested.slice(0, 60 - suffix.length).trimEnd()}${suffix}`;
+    if (!occupied.has(candidate)) return candidate;
+  }
+  throw new TRPCError({ code: "CONFLICT", message: "Für diese Config konnte kein freier Name gefunden werden." });
 }
 
 async function enforceAccountQuota(tx: DatabaseTransaction, userId: string) {
@@ -360,7 +416,12 @@ export const configRouter = createTRPCRouter({
     serializeConfig(await loadOwnedConfig(ctx.userId, input.id))),
 
   create: protectedProcedure
-    .input(contentInput.extend({ mutationId: mutationIdSchema }))
+    .input(contentInput.extend({
+      mutationId: mutationIdSchema,
+      projectId: configIdSchema.optional(),
+      configType: z.enum(CONFIG_TYPES).default("matchmaking"),
+      nameConflict: z.enum(["error", "rename"]).default("error"),
+    }))
     .mutation(async ({ ctx, input }) => {
       await enforceConfigMutationRateLimit(ctx);
       const existing = await findMutationResult(ctx.userId, input.mutationId);
@@ -372,13 +433,16 @@ export const configRouter = createTRPCRouter({
       try {
         return await db.transaction(async (tx) => {
           await lockAccount(tx, ctx.userId);
+          const projectId = await resolveProjectId(tx, ctx.userId, input.projectId);
+          const name = await resolveConfigName(tx, ctx.userId, input.name, input.nameConflict);
           const [row] = await tx.insert(configs).values({
-            id, userId: ctx.userId, name: input.name, values, rawConfig: input.rawConfig,
+            id, userId: ctx.userId, projectId, name, configType: input.configType,
+            values, rawConfig: input.rawConfig,
             revision: 1, contentHash, createdAt: now, updatedAt: now,
           }).returning();
           await tx.insert(configRevisions).values({
             id: crypto.randomUUID(), configId: id, revision: 1, parentRevision: null,
-            kind: "create", name: input.name, snapshot: values, patch: null,
+            kind: "create", name, snapshot: values, patch: null,
             contentHash, mutationId: input.mutationId, createdAt: now,
           });
           await enforceAccountQuota(tx, ctx.userId);
@@ -391,6 +455,21 @@ export const configRouter = createTRPCRouter({
         }
         mapDatabaseError(error);
       }
+    }),
+
+  move: protectedProcedure
+    .input(z.object({ id: configIdSchema, projectId: configIdSchema }))
+    .mutation(async ({ ctx, input }) => {
+      await enforceConfigMutationRateLimit(ctx);
+      return await db.transaction(async (tx) => {
+        const projectId = await resolveProjectId(tx, ctx.userId, input.projectId);
+        const [row] = await tx.update(configs)
+          .set({ projectId, updatedAt: new Date() })
+          .where(and(eq(configs.id, input.id), eq(configs.userId, ctx.userId), isNull(configs.deletedAt)))
+          .returning(configMetadataSelection);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Config nicht gefunden." });
+        return serializeMetadata(row);
+      });
     }),
 
   save: protectedProcedure.input(writeInput).mutation(async ({ ctx, input }) => {

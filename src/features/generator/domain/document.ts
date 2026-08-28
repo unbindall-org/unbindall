@@ -1,4 +1,4 @@
-import { bindActions, commands, createDefaultState, presets, type ConfigState } from "../catalog/commands";
+import { bindActions, commands, createDefaultState, presets, type CommandDefinition, type ConfigState } from "../catalog/commands";
 import {
   GENERATOR_SCHEMA_VERSION,
   type ConfigType,
@@ -15,11 +15,11 @@ function createId(prefix: string) {
   return `${prefix}-${id}`;
 }
 
-export function createDefaultDocument(configType: ConfigType = "matchmaking"): GeneratorDocument {
+export function createDefaultDocument(configType: ConfigType = "matchmaking", commandList: CommandDefinition[] = commands): GeneratorDocument {
   const document: GeneratorDocument = {
     schemaVersion: GENERATOR_SCHEMA_VERSION,
     configType,
-    commandValues: createDefaultState(),
+    commandValues: createDefaultState(commandList),
     standardBinds: bindActions.map((action) => ({
       actionId: action.id,
       key: action.defaultKey,
@@ -40,8 +40,8 @@ export function createDefaultDocument(configType: ConfigType = "matchmaking"): G
 
   if (configType !== "matchmaking") {
     document.standardBinds = document.standardBinds.map((binding) => ({ ...binding, enabled: false }));
-    for (const command of commands) document.commandValues[`enabled:${command.name}`] = false;
-    for (const command of commands.filter((item) => isCommandAvailable(configType, item))) {
+    for (const command of commandList) document.commandValues[`enabled:${command.name}`] = false;
+    for (const command of commandList.filter((item) => isCommandAvailable(configType, item))) {
       document.commandValues[`enabled:${command.name}`] = Boolean(command.enabledByDefault);
     }
   }
@@ -49,7 +49,7 @@ export function createDefaultDocument(configType: ConfigType = "matchmaking"): G
   const presetName = configType === "practice" ? "practice"
     : configType === "server" ? "server-competitive" : null;
   const preset = presets.find((item) => item.name === presetName);
-  if (preset) enableValues(document, preset.values);
+  if (preset) enableValues(document, preset.values, commandList);
 
   if (configType === "offline") enableValues(document, {
     mp_autoteambalance: false,
@@ -62,20 +62,20 @@ export function createDefaultDocument(configType: ConfigType = "matchmaking"): G
     mp_buytime: 30,
     bot_difficulty: 1,
     mp_restartgame: 1,
-  });
+  }, commandList);
 
   if (configType === "warmup") enableValues(document, {
     mp_warmuptime: 300,
     mp_warmup_pausetimer: false,
-  });
+  }, commandList);
 
   return document;
 }
 
-export function normalizeDocument(value: unknown): GeneratorDocument {
+export function normalizeDocument(value: unknown, commandList: CommandDefinition[] = commands): GeneratorDocument {
   const candidate = value && typeof value === "object" ? value as Record<string, unknown> : null;
   const configType = isConfigType(candidate?.configType) ? candidate.configType : "matchmaking";
-  const defaults = createDefaultDocument(configType);
+  const defaults = createDefaultDocument(configType, commandList);
   if (!candidate) return defaults;
 
   if ([1, 2, GENERATOR_SCHEMA_VERSION].includes(Number(candidate.schemaVersion)) && candidate.commandValues) {
@@ -125,10 +125,10 @@ function sanitizeCommandValues(value: unknown): ConfigState {
   ) as ConfigState;
 }
 
-function enableValues(document: GeneratorDocument, values: ConfigState) {
+function enableValues(document: GeneratorDocument, values: ConfigState, commandList: CommandDefinition[]) {
   for (const [name, value] of Object.entries(values)) {
     document.commandValues[name] = value;
-    const command = commands.find((item) => item.name === name);
+    const command = commandList.find((item) => item.name === name);
     if (command && isCommandAvailable(document.configType, command)) {
       document.commandValues[`enabled:${name}`] = true;
     }

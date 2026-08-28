@@ -14,20 +14,21 @@ export type GeneratorModule = {
   searchableText: string;
 };
 
-const settingsModules: GeneratorModule[] = categories
-  .filter((category) => category.id !== "binds")
-  .map((category) => ({
-    ...category,
-    kind: "settings" as const,
-    searchableText: commands
-      .filter((command) => command.category === category.id && isCommandEditable(command))
-      .map((command) => `${command.label} ${command.name} ${command.description} ${command.status.verification} ${command.status.restrictions.join(" ")} ${command.status.checkedVersion}`)
-      .join(" ")
-      .toLowerCase(),
-  }));
+export function createGeneratorModules(commandCatalog = commands): GeneratorModule[] {
+  const settingsModules: GeneratorModule[] = categories
+    .filter((category) => category.id !== "binds")
+    .map((category) => ({
+      ...category,
+      kind: "settings" as const,
+      searchableText: commandCatalog
+        .filter((command) => command.category === category.id && isCommandEditable(command))
+        .map((command) => `${command.label} ${command.name} ${command.description} ${command.status.verification} ${command.status.restrictions.join(" ")} ${command.status.checkedVersion}`)
+        .join(" ")
+        .toLowerCase(),
+    }));
 
-export const generatorModules: GeneratorModule[] = [
-  ...settingsModules,
+  return [
+    ...settingsModules,
   {
     id: "binds", kind: "standard-binds", label: "Normale Keybinds", shortLabel: "Keybinds",
     description: "Vollständige Standardbelegung für Bewegung, Kampf und Interface",
@@ -43,7 +44,10 @@ export const generatorModules: GeneratorModule[] = [
     description: "Eigene einzelne Console-Aktionen sicher an Tasten binden",
     searchableText: "custom eigene freie console commands binds",
   },
-];
+  ];
+}
+
+export const generatorModules: GeneratorModule[] = createGeneratorModules();
 
 export function moduleCount(module: GeneratorModule) {
   if (module.kind === "settings") return commands.filter((command) => command.category === module.id && isCommandEditable(command)).length;

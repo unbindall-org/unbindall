@@ -77,6 +77,7 @@ export function getConfigTypeDefinition(type: ConfigType) {
 }
 
 export function isCommandAvailable(type: ConfigType, command: CommandDefinition) {
+  if (command.configTypes) return command.configTypes.includes(type);
   if (type === "matchmaking") return clientCategories.has(command.category);
   if (type === "practice") return command.category === "practice" || practiceServerCommands.has(command.name);
   if (type === "server") return command.category === "server";

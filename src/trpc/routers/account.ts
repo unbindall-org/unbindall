@@ -37,6 +37,7 @@ export const accountRouter = createTRPCRouter({
         id: users.id,
         name: users.name,
         email: users.email,
+        role: users.role,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })

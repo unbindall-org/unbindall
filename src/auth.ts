@@ -41,6 +41,7 @@ function mapDiscordProfile(profile: DiscordProfile) {
     // sie selbst als verifiziert ausweist.
     email: profile.verified ? profile.email : null,
     image,
+    role: "user" as const,
   };
 }
 
@@ -71,7 +72,7 @@ const providers: NextAuthConfig["providers"] = [
       const valid = await compare(result.data.password, user.passwordHash);
       if (!valid) return null;
 
-      return { id: user.id, name: user.name, email: user.email, image: user.image };
+      return { id: user.id, name: user.name, email: user.email, image: user.image, role: user.role };
     },
   }),
   Credentials({
@@ -115,12 +116,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
   pages: { signIn: "/" },
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user?.id) token.userId = user.id;
+
+      // Roles are deliberately refreshed from the database. A demotion must
+      // take effect on the next request, not only after the JWT expires.
+      if (token.userId) {
+        const [account] = await db
+          .select({ role: users.role })
+          .from(users)
+          .where(eq(users.id, token.userId))
+          .limit(1);
+        token.role = account?.role ?? "user";
+      }
       return token;
     },
     session({ session, token }) {
-      if (session.user) session.user.id = token.userId as string;
+      if (session.user) {
+        session.user.id = token.userId as string;
+        session.user.role = token.role ?? "user";
+      }
       return session;
     },
   },

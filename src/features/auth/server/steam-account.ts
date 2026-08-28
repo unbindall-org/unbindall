@@ -30,7 +30,7 @@ export async function getSteamPlayer(steamId: string) {
 export async function provisionSteamAccount(player: SteamPlayer) {
   return db.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ id: users.id, name: users.name, email: users.email, image: users.image })
+      .select({ id: users.id, name: users.name, email: users.email, image: users.image, role: users.role })
       .from(accounts)
       .innerJoin(users, eq(accounts.userId, users.id))
       .where(and(eq(accounts.provider, "steam"), eq(accounts.providerAccountId, player.steamid)))
@@ -41,7 +41,7 @@ export async function provisionSteamAccount(player: SteamPlayer) {
         .update(users)
         .set({ name: player.personaname, image: player.avatarfull ?? null, updatedAt: new Date() })
         .where(eq(users.id, existing.id))
-        .returning({ id: users.id, name: users.name, email: users.email, image: users.image });
+        .returning({ id: users.id, name: users.name, email: users.email, image: users.image, role: users.role });
       return updated;
     }
 
@@ -49,7 +49,7 @@ export async function provisionSteamAccount(player: SteamPlayer) {
     const [created] = await tx
       .insert(users)
       .values({ id, name: player.personaname, email: null, image: player.avatarfull ?? null })
-      .returning({ id: users.id, name: users.name, email: users.email, image: users.image });
+      .returning({ id: users.id, name: users.name, email: users.email, image: users.image, role: users.role });
     await tx.insert(accounts).values({
       userId: id,
       type: "openid",
@@ -62,7 +62,7 @@ export async function provisionSteamAccount(player: SteamPlayer) {
 
 export async function findSteamUser(steamId: string) {
   const [user] = await db
-    .select({ id: users.id, name: users.name, email: users.email, image: users.image })
+    .select({ id: users.id, name: users.name, email: users.email, image: users.image, role: users.role })
     .from(accounts)
     .innerJoin(users, eq(accounts.userId, users.id))
     .where(and(eq(accounts.provider, "steam"), eq(accounts.providerAccountId, steamId)))

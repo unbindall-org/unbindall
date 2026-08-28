@@ -1,11 +1,15 @@
-import { categories, commands } from "../catalog/commands";
+import { categories, commands, type CommandDefinition } from "../catalog/commands";
 import { normalizeDocument } from "./document";
 import { resolveBindings } from "./bindings";
 import type { GeneratorDocument } from "./types";
 import { configTypeUsesBinds, getConfigTypeDefinition, isCommandAvailable } from "./config-types";
 import { importConfigFiles, renderImportedFiles, type ConfigImportInput } from "./config-import";
 
-export function serializeConfig(document: GeneratorDocument, locale: "de" | "en" = "de") {
+export function serializeConfig(
+  document: GeneratorDocument,
+  locale: "de" | "en" = "de",
+  commandCatalog: CommandDefinition[] = commands,
+) {
   if (document.configType === "launch-options") return serializeLaunchOptions(document);
   const definition = getConfigTypeDefinition(document.configType);
 
@@ -17,7 +21,7 @@ export function serializeConfig(document: GeneratorDocument, locale: "de" | "en"
   const sections = categories
     .filter((category) => category.id !== "binds")
     .map((category) => {
-      const lines = commands
+      const lines = commandCatalog
         .filter((command) => command.category === category.id && isCommandAvailable(document.configType, command) && command.status.verification !== "deprecated" && document.commandValues[`enabled:${command.name}`])
         .map((command) => command.type === "action"
           ? command.name
@@ -53,18 +57,18 @@ export function serializeConfig(document: GeneratorDocument, locale: "de" | "en"
   ].join("\n");
 }
 
-export function parseConfig(source: string, current: GeneratorDocument) {
-  const next = normalizeDocument(current);
+export function parseConfig(source: string, current: GeneratorDocument, commandCatalog: CommandDefinition[] = commands) {
+  const next = normalizeDocument(current, commandCatalog);
   if (next.configType === "launch-options") return parseLaunchOptions(source, next);
-  return importConfigFiles([{ name: "import.cfg", source }], next);
+  return importConfigFiles([{ name: "import.cfg", source }], next, commandCatalog);
 }
 
-export function parseConfigFiles(files: ConfigImportInput[], current: GeneratorDocument) {
-  const next = normalizeDocument(current);
+export function parseConfigFiles(files: ConfigImportInput[], current: GeneratorDocument, commandCatalog: CommandDefinition[] = commands) {
+  const next = normalizeDocument(current, commandCatalog);
   if (next.configType === "launch-options") {
     return files.reduce((document, file) => parseLaunchOptions(file.source, document), next);
   }
-  return importConfigFiles(files, next);
+  return importConfigFiles(files, next, commandCatalog);
 }
 
 function serializeLaunchOptions(document: GeneratorDocument) {

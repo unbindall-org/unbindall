@@ -1,4 +1,4 @@
-import { bindActions, commands, isCommandEditable } from "../catalog/commands";
+import { bindActions, commands, isCommandEditable, type CommandDefinition } from "../catalog/commands";
 import { normalizeDocument } from "./document";
 import { sanitizeKey, validateCustomCommand } from "./bindings";
 import type { GeneratorDocument, ImportedConfigFile, ImportedConfigFormat, MultiBind } from "./types";
@@ -10,8 +10,8 @@ type KvObject = Array<[string, KvValue]>;
 type KvValue = string | KvObject | KvValue[];
 type KvToken = { type: "value" | "symbol"; value: string };
 
-export function importConfigFiles(inputs: ConfigImportInput[], current: GeneratorDocument) {
-  const next = normalizeDocument(current);
+export function importConfigFiles(inputs: ConfigImportInput[], current: GeneratorDocument, commandCatalog: CommandDefinition[] = commands) {
+  const next = normalizeDocument(current, commandCatalog);
   const files = inputs
     .filter((input) => input.source.length > 0)
     .map<ImportedConfigFile>((input) => ({
@@ -25,7 +25,7 @@ export function importConfigFiles(inputs: ConfigImportInput[], current: Generato
   const parsedBinds: ParsedBinding[] = [];
   for (const file of files) {
     const cfgSource = file.format === "cfg" ? file.source : convertKeyValuesToCfg(file.source);
-    importCfgSemantics(cfgSource, next, parsedBinds);
+    importCfgSemantics(cfgSource, next, parsedBinds, commandCatalog);
   }
   importBindings(parsedBinds, next);
   return next;
@@ -79,8 +79,8 @@ export function renderImportedFiles(files: ImportedConfigFile[]) {
   }).filter(Boolean);
 }
 
-function importCfgSemantics(source: string, document: GeneratorDocument, parsedBinds: ParsedBinding[]) {
-  const knownCommands = new Map(commands.filter(isCommandEditable).map((command) => [command.name.toLowerCase(), command]));
+function importCfgSemantics(source: string, document: GeneratorDocument, parsedBinds: ParsedBinding[], commandCatalog: CommandDefinition[]) {
+  const knownCommands = new Map(commandCatalog.filter(isCommandEditable).map((command) => [command.name.toLowerCase(), command]));
 
   for (const statement of cfgStatements(source)) {
     const tokens = cfgTokens(statement);

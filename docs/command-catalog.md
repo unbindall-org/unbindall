@@ -6,7 +6,9 @@ Der Katalog deckt drei Kontexte ab:
 - Competitive-Server: Matchformat, Rundenzeiten, Economy, Overtime, Pausen, Zuschauerregeln und Warmup
 - lokale Practice-Configs: Granatentraining, Trefferanzeigen, Respawns, Bots und freie Bewegung
 
-Der kuratierte Stand umfasst 137 Console-Commands: 69 für normale Client-Configs, 40 für Competitive-Server und 28 für Practice. Hinzu kommen die getrennt gepflegten Standard-Bind-Aktionen. Diese Grenze ist bewusst deutlich kleiner als der vollständige Engine-Dump.
+Der kuratierte Stand umfasst 137 Console-Commands: 69 für normale Client-Configs, 40 für Competitive-Server und 28 für Practice sowie sieben Steam-Launch-Optionen. Hinzu kommen die getrennt gepflegten Standard-Bind-Aktionen. Diese Grenze ist bewusst deutlich kleiner als der vollständige Engine-Dump.
+
+Zur Laufzeit stammen die Definitionen aus `command_definitions`. Der Plattform-Adminbereich pflegt Texte, Control-Typ, Wertebereich, Optionen, Config-Kontexte, Prüfstatus, Reihenfolge und Veröffentlichung. Die TypeScript-Liste bleibt als geprüfte Seed-Quelle für neue Installationen erhalten; produktive Änderungen werden nicht aus Client-Code geladen.
 
 ## Statusmodell
 

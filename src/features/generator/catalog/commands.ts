@@ -1,22 +1,21 @@
-export type CategoryId =
-  | "mouse"
-  | "crosshair"
-  | "viewmodel"
-  | "radar"
-  | "audio"
-  | "hud"
-  | "performance"
-  | "server"
-  | "practice"
-  | "launch-options";
+import type {
+  CatalogConfigType,
+  CategoryId,
+  CommandControlType,
+  CommandPreview,
+  CommandRestriction,
+  CommandVerification,
+} from "./model";
+
+export type { CategoryId } from "./model";
 
 export type CommandOption = { value: string | number; label: string };
 
 export const CS2_CATALOG_VERSION = "Build 24957633 (26.08.2026)";
 
 export type CommandStatus = {
-  verification: "verified" | "deprecated";
-  restrictions: Array<"offline-only" | "requires-cheats">;
+  verification: CommandVerification;
+  restrictions: CommandRestriction[];
   checkedVersion: string;
 };
 
@@ -25,7 +24,7 @@ export type CommandDefinition = {
   label: string;
   description: string;
   category: CategoryId;
-  type: "toggle" | "range" | "select" | "text" | "action" | "color";
+  type: CommandControlType;
   defaultValue: string | number | boolean;
   enabledByDefault?: boolean;
   min?: number;
@@ -33,7 +32,9 @@ export type CommandDefinition = {
   step?: number;
   unit?: string;
   options?: CommandOption[];
-  preview?: "crosshair" | "viewmodel" | "radar";
+  preview?: CommandPreview;
+  /** Present on DB-backed records; static seed records use the legacy availability rules. */
+  configTypes?: CatalogConfigType[];
   status: CommandStatus;
 };
 
@@ -753,8 +754,9 @@ export type CommandRegistryEntry = {
  * Single inventory for every command offered by the app. Deprecated settings
  * stay visible here for transparency, but are intentionally not editable.
  */
-export const commandRegistry: CommandRegistryEntry[] = [
-  ...commands.map((command) => ({
+export function createCommandRegistry(commandList: CommandDefinition[]): CommandRegistryEntry[] {
+  return [
+  ...commandList.map((command) => ({
     id: `setting:${command.name}`,
     name: command.name,
     label: command.label,
@@ -772,12 +774,15 @@ export const commandRegistry: CommandRegistryEntry[] = [
     source: "bind" as const,
     status: verifiedStatus(),
   })),
-];
+  ];
+}
+
+export const commandRegistry: CommandRegistryEntry[] = createCommandRegistry(commands);
 
 export type ConfigState = Record<string, string | number | boolean>;
 
-export function createDefaultState(): ConfigState {
-  return Object.fromEntries(commands.flatMap((command) => [
+export function createDefaultState(commandList: CommandDefinition[] = commands): ConfigState {
+  return Object.fromEntries(commandList.flatMap((command) => [
     [command.name, command.defaultValue],
     [`enabled:${command.name}`, Boolean(command.enabledByDefault)],
   ]));
