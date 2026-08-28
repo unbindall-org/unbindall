@@ -1,0 +1,31 @@
+name: Generator-Modul oder Feature
+description: Eine neue, klar abgegrenzte Funktion vorschlagen
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Welches konkrete CS2-Config-Problem soll gelöst werden?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Vorgeschlagene Lösung
+      description: Beschreibe Workflow, erzeugte CFG-Zeilen und gewünschte Validierung.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: CS2-Quelle
+      description: Aktuelle Valve-/GameTracking-Quelle für betroffene Commands.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Sicherheit
+      options:
+        - label: Das Feature automatisiert nicht mehrere Bewegungs- oder Angriffsaktionen mit einem Input.
+          required: true

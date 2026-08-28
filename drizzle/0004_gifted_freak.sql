@@ -1,0 +1,1 @@
+ALTER TABLE "config_revisions" ADD COLUMN "label" text;
