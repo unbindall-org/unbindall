@@ -10,6 +10,11 @@ import { accounts, sessions, users, verificationTokens } from "@/db/schema";
 import { getAuthSecret } from "@/features/auth/server/auth-secret";
 import { findSteamUser } from "@/features/auth/server/steam-account";
 import { verifySteamLoginToken } from "@/features/auth/server/steam-openid";
+import {
+  enforceRateLimits,
+  loginRateLimit,
+  requestRateLimit,
+} from "@/server/rate-limit";
 
 const credentialsSchema = z.object({
   email: z.email().transform((value) => value.toLowerCase()),
@@ -32,8 +37,8 @@ function mapDiscordProfile(profile: DiscordProfile) {
   return {
     id: profile.id,
     name: profile.global_name ?? profile.username,
-    // Automatisches Verknüpfen per E-Mail ist nur sicher, wenn Discord die
-    // Adresse selbst als verifiziert ausweist.
+    // Auch ohne Autolinking wird die Adresse nur gespeichert, wenn Discord
+    // sie selbst als verifiziert ausweist.
     email: profile.verified ? profile.email : null,
     image,
   };
@@ -45,9 +50,16 @@ const providers: NextAuthConfig["providers"] = [
       email: { label: "E-Mail", type: "email" },
       password: { label: "Passwort", type: "password" },
     },
-    authorize: async (credentials) => {
+    authorize: async (credentials, request) => {
       const result = credentialsSchema.safeParse(credentials);
       if (!result.success) return null;
+
+      // Both dimensions are consumed before the deliberately expensive bcrypt
+      // comparison. The login identifier is HMACed before it reaches Redis.
+      await enforceRateLimits([
+        requestRateLimit("credentialsLoginIp", request),
+        loginRateLimit(result.data.email),
+      ]);
 
       const [user] = await db
         .select()
@@ -86,7 +98,6 @@ if (process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET) {
   providers.push(Discord({
     clientId: process.env.AUTH_DISCORD_ID,
     clientSecret: process.env.AUTH_DISCORD_SECRET,
-    allowDangerousEmailAccountLinking: true,
     profile: mapDiscordProfile,
   }));
 }

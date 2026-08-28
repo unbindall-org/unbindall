@@ -1,25 +1,28 @@
 /**
  * Bildmarke von Unbindall.
  *
- * Ein aufgebrochener Ring, aus dem ein Glied gesprungen ist — die Geste hinter
- * dem Befehl, der jeder Autoexec vorausgeht: erst alles lösen, dann sauber neu
- * belegen.
+ * Ein Zug ohne Absetzen: die Linie läuft aus, kehrt um und schließt sich zur
+ * Schleife, ohne je den Kreis zu vollenden — die Geste hinter dem Befehl, der
+ * jeder Autoexec vorausgeht: erst alles lösen, dann sauber neu belegen.
  *
- * Die Platte übernimmt `currentColor`, das gelöste Glied bleibt immer im
- * Markenorange. Dadurch trägt das Zeichen auf hellem wie dunklem Untergrund,
- * ohne dass eine zweite Fassung gepflegt werden muss.
+ * Die Kontur übernimmt `currentColor`. Im Produkt sitzt sie in `.brand-symbol`
+ * und erbt dort `--on-brand` auf der orangefarbenen Kachel; dadurch trägt das
+ * Zeichen auf hellem wie dunklem Untergrund, ohne dass eine zweite Fassung
+ * gepflegt werden muss.
  *
- * Die Pfade sind auf ein 64er-Raster gerechnet; Ring und Glied halten überall
- * mindestens drei Rastereinheiten Abstand, damit die Form bis 16 px trägt.
+ * Gezeichnet ist der Pfad auf einem 35×38-Raster. `MARK_TRANSFORM` rechnet ihn
+ * mittig auf das 64er-Raster und füllt dort 81 % der Fläche — dasselbe Maß, das
+ * die Marke in `.brand-symbol` auf 72 % der Kachel bringt. `src/app/icon.svg`
+ * und die gerenderten PNGs halten dieselben 72 %; wird der Pfad getauscht,
+ * müssen sie über `scripts/render-icons.mjs` neu erzeugt werden.
  */
 
-/** Platte mit ausgestanztem Ring — eine Fläche, `evenodd` schneidet das Loch. */
-const PLATE =
-  "M22 6H42A16 16 0 0 1 58 22V42A16 16 0 0 1 42 58H22A16 16 0 0 1 6 42V22A16 16 0 0 1 22 6Z" +
-  "M49.36 26.36A18.25 18.25 0 1 1 37.64 14.64A3.25 3.25 0 0 1 35.63 20.83A11.75 11.75 0 1 0 43.17 28.37A3.25 3.25 0 0 1 49.36 26.36Z";
+/** Der Zug, wie gezeichnet: 35×38, Konturstärke 5, runde Enden. */
+export const MARK =
+  "M14.2082 2.50011C14.2082 2.50011 31.5 24.5001 32 25.0001C32.5 25.5001 7.20823 8.50011 7.20823 8.50011C3.5 6.50011 2.5 17.3075 2.5 20.9551C2.5 24.6027 3.949 28.1009 6.52823 30.6801C9.10746 33.2593 12.6056 34.7083 16.2532 34.7083C19.9008 34.7083 6 17.0001 9.5 19.0001L26.7082 30.0001";
 
-/** Das gelöste Glied, auf einer Bahn außerhalb des Rings. */
-const FRAGMENT = "M46.11 12.58A24 24 0 0 1 51.42 17.89";
+/** Vom Zeichenraster mittig auf das 64er-Raster; die Marke füllt 81 % davon. */
+export const MARK_TRANSFORM = "translate(7.82 6) scale(1.3975)";
 
 export function Logo({
   size = 34,
@@ -42,14 +45,9 @@ export function Logo({
       aria-hidden={title ? undefined : true}
     >
       {title ? <title>{title}</title> : null}
-      <path d={PLATE} fill="currentColor" fillRule="evenodd" />
-      <path
-        d={FRAGMENT}
-        fill="none"
-        stroke="var(--brand, #e48717)"
-        strokeWidth={5.5}
-        strokeLinecap="round"
-      />
+      <g transform={MARK_TRANSFORM}>
+        <path d={MARK} fill="none" stroke="currentColor" strokeWidth={5} strokeLinecap="round" />
+      </g>
     </svg>
   );
 }

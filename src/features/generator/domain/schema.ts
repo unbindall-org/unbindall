@@ -3,11 +3,15 @@ import { CONFIG_TYPES, GENERATOR_SCHEMA_VERSION } from "./types";
 
 const commandValueSchema = z.union([z.string().max(500), z.number().finite(), z.boolean()]);
 const keySchema = z.string().max(24);
+export const maxCommandValues = 500;
 
 export const generatorDocumentSchema = z.object({
   schemaVersion: z.literal(GENERATOR_SCHEMA_VERSION),
   configType: z.enum(CONFIG_TYPES),
-  commandValues: z.record(z.string().max(100), commandValueSchema),
+  commandValues: z.record(z.string().max(100), commandValueSchema).refine(
+    (values) => Object.keys(values).length <= maxCommandValues,
+    `Es sind höchstens ${maxCommandValues} Command-Werte erlaubt.`,
+  ),
   standardBinds: z.array(z.object({
     actionId: z.string().max(50),
     key: keySchema,

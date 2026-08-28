@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { signOut } from "next-auth/react";
+import { DiscordLogoIcon } from "@phosphor-icons/react";
+import { signIn, signOut } from "next-auth/react";
 import { useTranslation } from "react-i18next";
 import { Download, LoaderCircle, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,9 +25,14 @@ import { Label } from "@/components/ui/label";
 import { accountExportFilename } from "@/features/account/export-file";
 import { useTRPC } from "@/trpc/client";
 
-type Props = { open: boolean; onClose: () => void; user: NonNullable<Session["user"]> };
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  user: NonNullable<Session["user"]>;
+  authProviders: { discord: boolean; steam: boolean };
+};
 
-export function AccountDialog({ open, onClose, user }: Props) {
+export function AccountDialog({ open, onClose, user, authProviders }: Props) {
   const { t } = useTranslation();
   const trpc = useTRPC();
   const detailsQuery = useQuery(trpc.account.details.queryOptions(undefined, {
@@ -41,6 +47,7 @@ export function AccountDialog({ open, onClose, user }: Props) {
   const deleteAccountMutation = useMutation(trpc.account.delete.mutationOptions());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [password, setPassword] = useState("");
+  const [linkingDiscord, setLinkingDiscord] = useState(false);
   const exporting = exportQuery.isFetching;
   const deleting = deleteAccountMutation.isPending;
   const hasPassword = detailsQuery.data?.hasPassword ?? true;
@@ -89,6 +96,18 @@ export function AccountDialog({ open, onClose, user }: Props) {
     }
   }
 
+  async function linkDiscord() {
+    setLinkingDiscord(true);
+    try {
+      // Auth.js only links an unknown OAuth identity when this authenticated
+      // session cookie survives the round trip through Discord.
+      await signIn("discord", { callbackUrl: "/" });
+    } catch {
+      setLinkingDiscord(false);
+      toast.error(t("Discord konnte nicht verknüpft werden."));
+    }
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && close()}>
@@ -106,6 +125,22 @@ export function AccountDialog({ open, onClose, user }: Props) {
             <strong>{user.name}</strong>
             <small>{user.email ?? t("Verknüpfter OAuth-Account")}</small>
           </div>
+
+          {authProviders.discord && !detailsQuery.data?.providers.includes("discord") && (
+            <section className="account-section">
+              <h3>{t("Anmeldeanbieter verknüpfen")}</h3>
+              <p>{t("Verknüpfe Discord nur hier aus deiner bereits bestätigten Sitzung heraus.")}</p>
+              <Button
+                variant="outline"
+                className="oauth-button discord account-action"
+                disabled={linkingDiscord || detailsQuery.isPending}
+                onClick={linkDiscord}
+              >
+                {linkingDiscord ? <LoaderCircle className="spin" size={18} /> : <DiscordLogoIcon size={19} weight="fill" />}
+                {t("Discord verknüpfen")}
+              </Button>
+            </section>
+          )}
 
           <section className="account-section">
             <h3>{t("Daten exportieren")}</h3>

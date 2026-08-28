@@ -1,5 +1,5 @@
-const developmentSecret = "local-development-secret-change-me-please";
+import { authSecret } from "@/features/runtime/server/environment";
 
 export function getAuthSecret() {
-  return process.env.AUTH_SECRET ?? developmentSecret;
+  return authSecret();
 }

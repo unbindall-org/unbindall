@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CS2_CATALOG_VERSION, commands, presets } from "./commands";
+import { bindActions, commandRegistry, CS2_CATALOG_VERSION, commands, isCommandEditable, presets } from "./commands";
 
 describe("command catalog", () => {
   it("gives every command a current verification status", () => {
@@ -48,5 +48,13 @@ describe("command catalog", () => {
 
   it("never enables deprecated commands by default", () => {
     expect(commands.filter((command) => command.status.verification === "deprecated" && command.enabledByDefault)).toEqual([]);
+  });
+
+  it("keeps one complete registry while exposing only verified settings to editors", () => {
+    expect(commandRegistry).toHaveLength(commands.length + bindActions.length);
+    expect(new Set(commandRegistry.map((entry) => entry.id)).size).toBe(commandRegistry.length);
+    expect(commandRegistry.every((entry) => entry.status.checkedVersion === CS2_CATALOG_VERSION)).toBe(true);
+    expect(commands.filter(isCommandEditable)).toHaveLength(commands.length - 2);
+    expect(commandRegistry.filter((entry) => entry.status.verification === "deprecated")).toHaveLength(2);
   });
 });

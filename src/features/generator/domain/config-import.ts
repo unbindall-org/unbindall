@@ -1,4 +1,4 @@
-import { bindActions, commands } from "../catalog/commands";
+import { bindActions, commands, isCommandEditable } from "../catalog/commands";
 import { normalizeDocument } from "./document";
 import { sanitizeKey, validateCustomCommand } from "./bindings";
 import type { GeneratorDocument, ImportedConfigFile, ImportedConfigFormat, MultiBind } from "./types";
@@ -80,7 +80,7 @@ export function renderImportedFiles(files: ImportedConfigFile[]) {
 }
 
 function importCfgSemantics(source: string, document: GeneratorDocument, parsedBinds: ParsedBinding[]) {
-  const knownCommands = new Map(commands.map((command) => [command.name.toLowerCase(), command]));
+  const knownCommands = new Map(commands.filter(isCommandEditable).map((command) => [command.name.toLowerCase(), command]));
 
   for (const statement of cfgStatements(source)) {
     const tokens = cfgTokens(statement);

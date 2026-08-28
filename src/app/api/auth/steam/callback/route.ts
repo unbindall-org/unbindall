@@ -9,6 +9,7 @@ import {
   steamCallbackUrl,
   verifySteamOpenId,
 } from "@/features/auth/server/steam-openid";
+import { enforceRateLimits, RateLimitExceededError, requestRateLimit } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,18 @@ function errorRedirect(origin: string) {
 
 export async function GET(request: NextRequest) {
   const origin = appOrigin(request);
+  try {
+    await enforceRateLimits([requestRateLimit("steamCallbackIp", request)]);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 429, headers: { "retry-after": String(error.retryAfterSeconds) } },
+      );
+    }
+    return NextResponse.json({ error: "Rate-Limiting nicht verfügbar." }, { status: 503 });
+  }
+
   const state = request.nextUrl.searchParams.get("state");
   const cookieStore = await cookies();
   const expectedState = cookieStore.get(stateCookie)?.value;

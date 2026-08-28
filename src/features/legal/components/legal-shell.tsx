@@ -33,27 +33,29 @@ export async function LegalShell({
         <Link href="/" className="legal-back"><ArrowLeft size={16} />Zum Generator</Link>
       </header>
 
-      <main className="legal-main">
-        {locale === "en" && (
-          <p className="legal-locale-note">
-            This page is only available in German. The German version is the legally binding one.
-          </p>
-        )}
+      <div className="legal-scroll">
+        <main className="legal-main">
+          {locale === "en" && (
+            <p className="legal-locale-note">
+              This page is only available in German. The German version is the legally binding one.
+            </p>
+          )}
 
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p className="legal-lead">{lead}</p>
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          <p className="legal-lead">{lead}</p>
 
-        <div className="legal-body">{children}</div>
+          <div className="legal-body">{children}</div>
 
-        <footer className="legal-foot">
-          <span>Stand: {legal.lastUpdated}</span>
-          <nav>
-            <Link href="/impressum">Impressum</Link>
-            <Link href="/datenschutz">Datenschutz</Link>
-          </nav>
-        </footer>
-      </main>
+          <footer className="legal-foot">
+            <span>Stand: {legal.lastUpdated}</span>
+            <nav>
+              <Link href="/impressum">Impressum</Link>
+              <Link href="/datenschutz">Datenschutz</Link>
+            </nav>
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }

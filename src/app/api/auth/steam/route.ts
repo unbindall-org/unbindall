@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSteamAuthorizationUrl, createSteamState } from "@/features/auth/server/steam-openid";
+import { enforceRateLimits, RateLimitExceededError, requestRateLimit } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,16 @@ function appOrigin(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  try {
+    await enforceRateLimits([requestRateLimit("steamStartIp", request)]);
+  } catch (error) {
+    const retryAfter = error instanceof RateLimitExceededError ? error.retryAfterSeconds : 30;
+    return NextResponse.json(
+      { error: error instanceof RateLimitExceededError ? error.message : "Rate-Limiting nicht verfügbar." },
+      { status: error instanceof RateLimitExceededError ? 429 : 503, headers: { "retry-after": String(retryAfter) } },
+    );
+  }
+
   if (!process.env.STEAM_WEB_API_KEY) {
     return NextResponse.json({ error: "Steam-Login ist nicht konfiguriert." }, { status: 503 });
   }

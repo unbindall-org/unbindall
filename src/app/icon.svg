@@ -1,8 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <style>
-    .plate { fill: #241f1a }
-    @media (prefers-color-scheme: dark) { .plate { fill: #f7f5f2 } }
+    .tile { fill: #241f1a }
+    .mark { stroke: #f7f5f2 }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #f7f5f2 }
+      .mark { stroke: #1d1a17 }
+    }
   </style>
-  <path class="plate" fill-rule="evenodd" d="M22 6H42A16 16 0 0 1 58 22V42A16 16 0 0 1 42 58H22A16 16 0 0 1 6 42V22A16 16 0 0 1 22 6ZM49.36 26.36A18.25 18.25 0 1 1 37.64 14.64A3.25 3.25 0 0 1 35.63 20.83A11.75 11.75 0 1 0 43.17 28.37A3.25 3.25 0 0 1 49.36 26.36Z"/>
-  <path d="M46.11 12.58A24 24 0 0 1 51.42 17.89" fill="none" stroke="#e48717" stroke-width="5.5" stroke-linecap="round"/>
+  <rect class="tile" x="6" y="6" width="52" height="52" rx="16"/>
+  <g transform="translate(14.59 13.28) scale(1.0062)">
+    <path class="mark" fill="none" stroke-width="5" stroke-linecap="round"
+          d="M14.2082 2.50011C14.2082 2.50011 31.5 24.5001 32 25.0001C32.5 25.5001 7.20823 8.50011 7.20823 8.50011C3.5 6.50011 2.5 17.3075 2.5 20.9551C2.5 24.6027 3.949 28.1009 6.52823 30.6801C9.10746 33.2593 12.6056 34.7083 16.2532 34.7083C19.9008 34.7083 6 17.0001 9.5 19.0001L26.7082 30.0001"/>
+  </g>
 </svg>

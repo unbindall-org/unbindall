@@ -19,7 +19,11 @@ jobs:
     env:
       DATABASE_URL: postgresql://build:build@ep-build-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require
       AUTH_SECRET: ci-only-secret-that-is-never-used-at-runtime
+      AUTH_URL: https://ci.example.com
+      AUTH_EXPECTED_HOST: ci.example.com
       AUTH_TRUST_HOST: "true"
+      TRUSTED_PROXY_COUNT: "1"
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
@@ -33,10 +37,71 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: unbindall_test
+          POSTGRES_USER: unbindall
+          POSTGRES_PASSWORD: unbindall
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U unbindall -d unbindall_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: unbindall_test
+          POSTGRES_USER: unbindall
+          POSTGRES_PASSWORD: unbindall
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U unbindall -d unbindall_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
   container:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - name: Build production image
-        run: docker build --tag unbindall:ci .
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Smoke-, Ausfall- und Lasttest
+        run: pnpm test:container

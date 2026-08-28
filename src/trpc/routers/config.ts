@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { configRevisions, configs, type ConfigRevisionKind, type ConfigValues } from "@/db/schema";
+import { configRevisions, configs, users, type ConfigRevisionKind, type ConfigValues } from "@/db/schema";
 import { generatorDocumentSchema } from "@/features/generator/domain/schema";
 import {
   applyJsonPatch,
@@ -13,7 +13,14 @@ import {
   type JsonPatch,
   type JsonValue,
 } from "@/features/generator/domain/versioning";
+import { accountRateLimit, requestRateLimit } from "@/server/rate-limit";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { enforceTRPCRateLimits } from "@/trpc/rate-limit";
+
+export const accountConfigQuota = 25;
+export const accountStorageQuotaBytes = 10 * 1024 * 1024;
+export const revisionRetention = 100;
+const revisionCompactionThreshold = 200;
 
 const mutationIdSchema = z.string().uuid();
 const configIdSchema = z.string().uuid();
@@ -75,6 +82,127 @@ function mapDatabaseError(error: unknown): never {
 
 function isUniqueViolation(error: unknown) {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "23505");
+}
+
+type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function enforceConfigMutationRateLimit(ctx: { userId: string; request?: Request }) {
+  await enforceTRPCRateLimits([
+    accountRateLimit("configMutationAccount", ctx.userId),
+    requestRateLimit("configMutationIp", ctx.request),
+  ]);
+}
+
+async function lockAccount(tx: DatabaseTransaction, userId: string) {
+  const [account] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .for("update")
+    .limit(1);
+  if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Account nicht gefunden." });
+}
+
+async function enforceAccountQuota(tx: DatabaseTransaction, userId: string) {
+  const [configUsage] = await tx
+    .select({
+      count: count(),
+      bytes: sql<number>`coalesce(sum(
+        octet_length(${configs.name}) +
+        octet_length(${configs.rawConfig}) +
+        octet_length(${configs.values}::text)
+      ), 0)`,
+    })
+    .from(configs)
+    .where(eq(configs.userId, userId));
+
+  if (configUsage.count > accountConfigQuota) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Pro Account sind höchstens ${accountConfigQuota} Configs inklusive Papierkorb erlaubt.`,
+    });
+  }
+
+  const [revisionUsage] = await tx
+    .select({
+      bytes: sql<number>`coalesce(sum(
+        octet_length(${configRevisions.name}) +
+        octet_length(${configRevisions.contentHash}) +
+        octet_length(${configRevisions.mutationId}) +
+        coalesce(octet_length(${configRevisions.label}), 0) +
+        coalesce(octet_length(${configRevisions.snapshot}::text), 0) +
+        coalesce(octet_length(${configRevisions.patch}::text), 0)
+      ), 0)`,
+    })
+    .from(configRevisions)
+    .innerJoin(configs, eq(configRevisions.configId, configs.id))
+    .where(eq(configs.userId, userId));
+
+  const usedBytes = Number(configUsage.bytes) + Number(revisionUsage.bytes);
+  if (usedBytes > accountStorageQuotaBytes) {
+    throw new TRPCError({
+      code: "PAYLOAD_TOO_LARGE",
+      message: "Das Speicherlimit von 10 MiB pro Account ist erreicht.",
+    });
+  }
+}
+
+async function compactRevisionHistory(
+  tx: DatabaseTransaction,
+  configId: string,
+  latestRevision: number,
+) {
+  const [usage] = await tx
+    .select({ count: count() })
+    .from(configRevisions)
+    .where(eq(configRevisions.configId, configId));
+  if (usage.count <= revisionCompactionThreshold) return;
+  const firstRetainedRevision = latestRevision - revisionRetention + 1;
+
+  const [base] = await tx
+    .select({ revision: configRevisions.revision, snapshot: configRevisions.snapshot })
+    .from(configRevisions)
+    .where(and(
+      eq(configRevisions.configId, configId),
+      lte(configRevisions.revision, firstRetainedRevision),
+      isNotNull(configRevisions.snapshot),
+    ))
+    .orderBy(desc(configRevisions.revision))
+    .limit(1);
+  if (!base?.snapshot) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Revisionskette ist unvollständig." });
+  }
+
+  const tail = await tx
+    .select({ patch: configRevisions.patch })
+    .from(configRevisions)
+    .where(and(
+      eq(configRevisions.configId, configId),
+      gt(configRevisions.revision, base.revision),
+      lte(configRevisions.revision, firstRetainedRevision),
+    ))
+    .orderBy(asc(configRevisions.revision));
+  let document = base.snapshot as JsonValue;
+  for (const row of tail) {
+    if (!row.patch) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Revisionskette ist unvollständig." });
+    document = applyJsonPatch(document, row.patch as JsonPatch);
+  }
+
+  const parsed = generatorDocumentSchema.safeParse(document);
+  if (!parsed.success) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Revision enthält ein ungültiges Dokument." });
+  }
+  await tx
+    .update(configRevisions)
+    .set({ snapshot: parsed.data, patch: null, parentRevision: null })
+    .where(and(
+      eq(configRevisions.configId, configId),
+      eq(configRevisions.revision, firstRetainedRevision),
+    ));
+  await tx.delete(configRevisions).where(and(
+    eq(configRevisions.configId, configId),
+    lt(configRevisions.revision, firstRetainedRevision),
+  ));
 }
 
 async function findMutationResult(userId: string, mutationId: string) {
@@ -144,6 +272,7 @@ async function appendRevision(args: {
 }) {
   try {
     return await db.transaction(async (tx) => {
+      await lockAccount(tx, args.userId);
       const [current] = await tx
         .select()
         .from(configs)
@@ -207,6 +336,11 @@ async function appendRevision(args: {
         .where(eq(configs.id, current.id))
         .returning();
 
+      await compactRevisionHistory(tx, current.id, revision);
+      // A user at the storage ceiling must still be able to move data to the
+      // trash and then remove it permanently.
+      if (args.kind !== "delete") await enforceAccountQuota(tx, args.userId);
+
       return serializeConfig(updated);
     });
   } catch (error) {
@@ -228,6 +362,7 @@ export const configRouter = createTRPCRouter({
   create: protectedProcedure
     .input(contentInput.extend({ mutationId: mutationIdSchema }))
     .mutation(async ({ ctx, input }) => {
+      await enforceConfigMutationRateLimit(ctx);
       const existing = await findMutationResult(ctx.userId, input.mutationId);
       if (existing) return serializeConfig(existing);
       const id = crypto.randomUUID();
@@ -236,6 +371,7 @@ export const configRouter = createTRPCRouter({
       const contentHash = hashDocument(values);
       try {
         return await db.transaction(async (tx) => {
+          await lockAccount(tx, ctx.userId);
           const [row] = await tx.insert(configs).values({
             id, userId: ctx.userId, name: input.name, values, rawConfig: input.rawConfig,
             revision: 1, contentHash, createdAt: now, updatedAt: now,
@@ -245,6 +381,7 @@ export const configRouter = createTRPCRouter({
             kind: "create", name: input.name, snapshot: values, patch: null,
             contentHash, mutationId: input.mutationId, createdAt: now,
           });
+          await enforceAccountQuota(tx, ctx.userId);
           return serializeConfig(row);
         });
       } catch (error) {
@@ -256,13 +393,15 @@ export const configRouter = createTRPCRouter({
       }
     }),
 
-  save: protectedProcedure.input(writeInput).mutation(({ ctx, input }) => appendRevision({
-    ...input, userId: ctx.userId, kind: "manual",
-  })),
+  save: protectedProcedure.input(writeInput).mutation(async ({ ctx, input }) => {
+    await enforceConfigMutationRateLimit(ctx);
+    return appendRevision({ ...input, userId: ctx.userId, kind: "manual" });
+  }),
 
-  autosave: protectedProcedure.input(writeInput).mutation(({ ctx, input }) => appendRevision({
-    ...input, userId: ctx.userId, kind: "autosave",
-  })),
+  autosave: protectedProcedure.input(writeInput).mutation(async ({ ctx, input }) => {
+    await enforceConfigMutationRateLimit(ctx);
+    return appendRevision({ ...input, userId: ctx.userId, kind: "autosave" });
+  }),
 
   history: protectedProcedure
     .input(z.object({ id: configIdSchema, beforeRevision: z.number().int().positive().optional(), limit: z.number().int().min(1).max(100).default(50) }))
@@ -326,6 +465,7 @@ export const configRouter = createTRPCRouter({
       rawConfig: z.string().max(100_000),
     }))
     .mutation(async ({ ctx, input }) => {
+      await enforceConfigMutationRateLimit(ctx);
       const config = await loadOwnedConfig(ctx.userId, input.id, true);
       const [target] = await db.select({ name: configRevisions.name }).from(configRevisions)
         .where(and(eq(configRevisions.configId, config.id), eq(configRevisions.revision, input.revision))).limit(1);
@@ -340,9 +480,10 @@ export const configRouter = createTRPCRouter({
 
   delete: protectedProcedure
     .input(z.object({ id: configIdSchema, expectedRevision: z.number().int().nonnegative(), mutationId: mutationIdSchema }))
-    .mutation(({ ctx, input }) => appendRevision({
-      ...input, userId: ctx.userId, kind: "delete", markDeleted: true,
-    })),
+    .mutation(async ({ ctx, input }) => {
+      await enforceConfigMutationRateLimit(ctx);
+      return appendRevision({ ...input, userId: ctx.userId, kind: "delete", markDeleted: true });
+    }),
 
   trash: protectedProcedure.query(async ({ ctx }) => {
     const rows = await db.select(configMetadataSelection).from(configs)
@@ -353,13 +494,17 @@ export const configRouter = createTRPCRouter({
 
   undelete: protectedProcedure
     .input(z.object({ id: configIdSchema, expectedRevision: z.number().int().nonnegative(), mutationId: mutationIdSchema }))
-    .mutation(({ ctx, input }) => appendRevision({
-      ...input, userId: ctx.userId, kind: "undelete", allowDeleted: true, markUndeleted: true,
-    })),
+    .mutation(async ({ ctx, input }) => {
+      await enforceConfigMutationRateLimit(ctx);
+      return appendRevision({
+        ...input, userId: ctx.userId, kind: "undelete", allowDeleted: true, markUndeleted: true,
+      });
+    }),
 
   permanentDelete: protectedProcedure
     .input(z.object({ id: configIdSchema }))
     .mutation(async ({ ctx, input }) => {
+      await enforceConfigMutationRateLimit(ctx);
       const [row] = await db.delete(configs)
         .where(and(eq(configs.id, input.id), eq(configs.userId, ctx.userId), isNotNull(configs.deletedAt)))
         .returning({ id: configs.id });

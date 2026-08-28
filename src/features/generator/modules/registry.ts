@@ -1,4 +1,4 @@
-import { bindActions, categories, commands } from "../catalog/commands";
+import { bindActions, categories, commands, isCommandEditable } from "../catalog/commands";
 import type { GeneratorDocument } from "../domain/types";
 
 export type GeneratorModuleId =
@@ -20,7 +20,7 @@ const settingsModules: GeneratorModule[] = categories
     ...category,
     kind: "settings" as const,
     searchableText: commands
-      .filter((command) => command.category === category.id)
+      .filter((command) => command.category === category.id && isCommandEditable(command))
       .map((command) => `${command.label} ${command.name} ${command.description} ${command.status.verification} ${command.status.restrictions.join(" ")} ${command.status.checkedVersion}`)
       .join(" ")
       .toLowerCase(),
@@ -46,13 +46,13 @@ export const generatorModules: GeneratorModule[] = [
 ];
 
 export function moduleCount(module: GeneratorModule) {
-  if (module.kind === "settings") return commands.filter((command) => command.category === module.id).length;
+  if (module.kind === "settings") return commands.filter((command) => command.category === module.id && isCommandEditable(command)).length;
   return null;
 }
 
 export function moduleDocumentItemCount(module: GeneratorModule, document: GeneratorDocument, enabledOnly = false) {
   if (module.kind === "settings") {
-    return commands.filter((command) => command.category === module.id &&
+    return commands.filter((command) => command.category === module.id && isCommandEditable(command) &&
       (!enabledOnly || Boolean(document.commandValues[`enabled:${command.name}`]))).length;
   }
   if (module.kind === "standard-binds") {

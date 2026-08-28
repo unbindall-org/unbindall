@@ -4,7 +4,9 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { requestRateLimit } from "@/server/rate-limit";
 import { createTRPCRouter, publicProcedure } from "@/trpc/init";
+import { enforceTRPCRateLimits } from "@/trpc/rate-limit";
 
 const registrationInput = z.object({
   name: z.string().trim().min(2).max(50),
@@ -13,7 +15,10 @@ const registrationInput = z.object({
 });
 
 export const authRouter = createTRPCRouter({
-  register: publicProcedure.input(registrationInput).mutation(async ({ input }) => {
+  register: publicProcedure.input(registrationInput).mutation(async ({ ctx, input }) => {
+    // This must happen before querying the address and before bcrypt consumes CPU.
+    await enforceTRPCRateLimits([requestRateLimit("registrationIp", ctx.request)]);
+
     const [existing] = await db
       .select({ id: users.id })
       .from(users)

@@ -35,6 +35,7 @@ Trage anschließend die beiden Verbindungen aus dem Neon-Dashboard ein:
 
 - `DATABASE_URL`: gepoolte URL für die laufende Anwendung; der Hostname enthält `-pooler`
 - `DATABASE_MIGRATION_URL`: direkte URL ohne `-pooler` für Drizzle-Migrationen
+- `REDIS_URL`: Redis-Verbindung für die zentralen, instanzübergreifenden Rate-Limits
 
 Die direkte Verbindung für Migrationen entspricht der Empfehlung von Neon. Beide URLs müssen `sslmode=require` enthalten. Ersetze außerdem unbedingt `AUTH_SECRET`. Ein Secret kannst du beispielsweise so erzeugen:
 
@@ -47,7 +48,7 @@ Die Social-Logins werden nur angezeigt, wenn die zugehörigen Variablen vollstä
 - Discord: `AUTH_DISCORD_ID` und `AUTH_DISCORD_SECRET`; im Discord Developer Portal muss als Redirect `http://localhost:3000/api/auth/callback/discord` beziehungsweise in Produktion `https://DEINE-DOMAIN/api/auth/callback/discord` eingetragen sein.
 - Steam: `STEAM_WEB_API_KEY` aus der Steam-Web-API-Key-Seite. Steam Login basiert nicht auf OAuth, sondern auf OpenID 2.0. Realm und Callback werden von der App aus `AUTH_URL` erzeugt und müssen bei Steam nicht separat registriert werden.
 
-`AUTH_URL` muss deshalb in jeder Umgebung exakt auf die öffentlich erreichbare Origin zeigen, lokal also `http://localhost:3000`, in Produktion beispielsweise `https://unbindall.org`.
+`AUTH_URL` muss deshalb in jeder Umgebung exakt auf die öffentlich erreichbare Origin zeigen, lokal also `http://localhost:3000`, in Produktion beispielsweise `https://unbindall.org`. In Produktion muss `AUTH_EXPECTED_HOST` zusätzlich exakt den erwarteten Hostnamen enthalten. `AUTH_TRUST_HOST=true` ist nur hinter einem kontrollierten Reverse Proxy zulässig; `TRUSTED_PROXY_COUNT` gibt die Anzahl der vertrauenswürdigen Proxy-Hops an.
 
 Danach:
 
@@ -66,6 +67,11 @@ pnpm dev          # Entwicklungsserver
 pnpm typecheck    # strikte TypeScript-Prüfung
 pnpm lint         # ESLint
 pnpm test         # Domain- und Serializer-Tests
+pnpm test:db:up   # isolierte PostgreSQL-Testdatenbank starten
+pnpm test:integration # Router, Migrationen, Auth und Kaskaden gegen PostgreSQL
+pnpm test:e2e     # Browser-Flows mit Playwright/Chromium
+pnpm test:container # Container-Smoke, DB-Ausfall und einfacher Lasttest
+pnpm test:db:down # Testdatenbank und Testvolumes entfernen
 pnpm build        # Typprüfung + Produktions-Build
 pnpm db:generate  # Migration aus dem Drizzle-Schema erzeugen
 pnpm db:migrate   # offene Migrationen anwenden
@@ -76,11 +82,13 @@ pnpm db:studio    # Datenbankoberfläche öffnen
 
 Auth.js verwendet die Tabellen `users`, `accounts`, `sessions` und `verification_tokens`. `configs` hält den aktuellen Stand, `config_revisions` die unveränderliche Historie aus Snapshots und Patches. Aktive Config-Namen sind pro Account eindeutig. Normales Löschen verschiebt eine Config samt Historie in den Papierkorb; beim Löschen eines Accounts werden Sessions, Provider-Konten, Configs und Revisionen kaskadierend entfernt. Das Revisionskonzept ist in [docs/versioning.md](docs/versioning.md) beschrieben.
 
-Alle Login-Arten verwenden signierte JWT-Cookies. Passwörter werden ausschließlich als bcrypt-Hash gespeichert. Discord-Adressen werden nur dann zur sicheren Verknüpfung mit einem bestehenden Account genutzt, wenn Discord sie als verifiziert meldet. Steam-Identitäten werden mit einer State-Cookie, einer frischen OpenID-Nonce und einer serverseitigen `check_authentication`-Anfrage an Steam geprüft. Für eine öffentliche Produktion sollte zusätzlich E-Mail-Verifizierung und Rate-Limiting für Credentials sowie ein externer Secret-Manager ergänzt werden.
+Alle Login-Arten verwenden signierte JWT-Cookies. Passwörter werden ausschließlich als bcrypt-Hash gespeichert. Discord-Konten werden niemals automatisch anhand einer E-Mail-Adresse mit einem bestehenden Account verknüpft. Eine Verknüpfung ist nur explizit in einer bereits authentifizierten Sitzung unter „Account & Daten“ möglich. Steam-Identitäten werden mit einer State-Cookie, einer frischen OpenID-Nonce und einer serverseitigen `check_authentication`-Anfrage an Steam geprüft.
+
+Redis begrenzt Registrierung, Credentials-Login, Auth-Endpunkte, Steam-Start und -Callback, Account-Löschung, Exporte und Config-Schreiblast jeweils nach IP und/oder Account. Fällt Redis in Produktion aus, werden die geschützten Operationen sicher abgewiesen. Pro Account gelten außerdem maximal 25 Configs inklusive Papierkorb und 10 MiB logisches Datenvolumen. Revisionshistorien werden ab 200 Einträgen auf die letzten 100 Stände verdichtet; Config-Dokumente akzeptieren höchstens 500 `commandValues`.
 
 ## Deployment
 
-Der Server benötigt `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL` und – hinter einem vertrauenswürdigen Reverse Proxy – `AUTH_TRUST_HOST=true`. Für Discord kommen `AUTH_DISCORD_ID` und `AUTH_DISCORD_SECRET`, für Steam `STEAM_WEB_API_KEY` hinzu. Die Build-/Deployment-Umgebung benötigt zusätzlich `DATABASE_MIGRATION_URL`, wenn sie Migrationen ausführt. Vor dem Start einer neuen Version muss `pnpm db:migrate` gegen die direkte Neon-Verbindung ausgeführt werden. Die App benötigt eine Node.js-Laufzeit; ein rein statischer Export reicht wegen Auth.js und der Config-API nicht aus.
+Der Server benötigt `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_EXPECTED_HOST` und eine explizite `AUTH_TRUST_HOST`-Entscheidung. Hinter einem vertrauenswürdigen Reverse Proxy kommen `AUTH_TRUST_HOST=true` und `TRUSTED_PROXY_COUNT` hinzu. Für Discord müssen `AUTH_DISCORD_ID` und `AUTH_DISCORD_SECRET` gemeinsam gesetzt werden, für Steam optional `STEAM_WEB_API_KEY`. Die Produktionskonfiguration wird beim Serverstart zentral validiert; unsichere Secrets, HTTP-Origins, unerwartete Domains, ungepoolte/TLS-lose Datenbank-URLs und inkonsistente Provider-Konfigurationen brechen den Start ab. Die Build-/Deployment-Umgebung benötigt zusätzlich `DATABASE_MIGRATION_URL`, wenn sie Migrationen ausführt. Vor dem Start einer neuen Version muss `pnpm db:migrate` gegen die direkte Neon-Verbindung ausgeführt werden. Die App benötigt eine Node.js-Laufzeit; ein rein statischer Export reicht wegen Auth.js und der Config-API nicht aus.
 
 ### Docker und Dokploy
 
@@ -89,10 +97,13 @@ Das Multi-Stage-`Dockerfile` baut Next.js als Standalone-Server. Das finale Imag
 ```bash
 docker build -t unbindall .
 docker run --rm -p 3000:3000 \
-  -e DATABASE_URL='postgresql://…' \
+  -e DATABASE_URL='postgresql://…-pooler…/neondb?sslmode=require' \
+  -e REDIS_URL='rediss://…' \
   -e AUTH_SECRET='…' \
-  -e AUTH_URL='http://localhost:3000' \
+  -e AUTH_URL='https://deine-domain.example' \
+  -e AUTH_EXPECTED_HOST='deine-domain.example' \
   -e AUTH_TRUST_HOST='true' \
+  -e TRUSTED_PROXY_COUNT='1' \
   unbindall
 ```
 
@@ -100,9 +111,12 @@ In Dokploy wird das Repository als Anwendung mit dem Build-Typ `Dockerfile` eing
 
 ```dotenv
 DATABASE_URL=postgresql://…-pooler…/neondb?sslmode=require
+REDIS_URL=rediss://…
 AUTH_SECRET=…
 AUTH_URL=https://deine-domain.example
+AUTH_EXPECTED_HOST=deine-domain.example
 AUTH_TRUST_HOST=true
+TRUSTED_PROXY_COUNT=1
 ```
 
 Optional kommen die Discord- und Steam-Variablen aus dem Abschnitt „Lokal starten“ hinzu. Secrets werden nicht als Docker-Build-Argumente übergeben. Der Healthcheck ruft `/api/health` auf.

@@ -22,6 +22,7 @@ describe("moduleDocumentItemCount", () => {
     const document = createDefaultDocument();
 
     expect(moduleDocumentItemCount(moduleById("mouse"), document)).toBe(3);
+    expect(moduleDocumentItemCount(moduleById("viewmodel"), document)).toBe(6);
     expect(moduleDocumentItemCount(moduleById("multi-binds"), document)).toBe(1);
   });
 });

@@ -3,6 +3,8 @@ import type { Session } from "next-auth";
 
 export type TRPCContext = {
   session: Session | null;
+  /** Present for HTTP calls; omitted only by trusted in-process callers/tests. */
+  request?: Request;
 };
 
 const t = initTRPC.context<TRPCContext>().create();

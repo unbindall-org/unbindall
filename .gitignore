@@ -1,8 +1,10 @@
 node_modules
 .next
+.next-e2e
 .env
 .env.local
-drizzle/meta
 *.log
 *.tsbuildinfo
 .DS_Store
+playwright-report
+test-results

@@ -20,6 +20,18 @@ pnpm build
 
 Alle vier Prüfungen müssen erfolgreich sein. Pull Requests sollen eine konkrete Änderung enthalten und Screenshots für sichtbare UI-Änderungen mitbringen.
 
+Änderungen an Persistenz, Authentifizierung oder Containerbetrieb müssen zusätzlich die passenden erweiterten Suiten bestehen:
+
+```bash
+pnpm test:db:up
+pnpm test:integration
+pnpm test:e2e
+pnpm test:db:down
+pnpm test:container
+```
+
+`test:integration` migriert die ausschließlich für Tests vorgesehene PostgreSQL-Datenbank vor der Suite aus einem leeren Schema. `test:e2e` benötigt einmalig einen Chromium-Browser (`pnpm exec playwright install chromium`). `test:container` baut den Produktionscontainer, prüft den DB-abhängigen Healthcheck, simuliert einen Datenbankausfall und führt den kleinen Login-/Autosave-/Export-Lasttest aus.
+
 ## Neue Commands
 
 - Nur aktuell in CS2 vorhandene Commands aufnehmen.

@@ -5,7 +5,9 @@ import { z } from "zod";
 import { db } from "@/db";
 import { accounts, configRevisions, configs, users } from "@/db/schema";
 import { accountExportFormat, accountExportFormatVersion } from "@/features/account/export-file";
+import { accountRateLimit, requestRateLimit } from "@/server/rate-limit";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { enforceTRPCRateLimits } from "@/trpc/rate-limit";
 
 export const accountRouter = createTRPCRouter({
   details: protectedProcedure.query(async ({ ctx }) => {
@@ -28,6 +30,8 @@ export const accountRouter = createTRPCRouter({
   }),
 
   export: protectedProcedure.query(async ({ ctx }) => {
+    await enforceTRPCRateLimits([accountRateLimit("accountExportAccount", ctx.userId)]);
+
     const [account] = await db
       .select({
         id: users.id,
@@ -101,6 +105,11 @@ export const accountRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ password: z.string().max(128).default("") }))
     .mutation(async ({ ctx, input }) => {
+      await enforceTRPCRateLimits([
+        accountRateLimit("accountDeleteAccount", ctx.userId),
+        requestRateLimit("accountDeleteIp", ctx.request),
+      ]);
+
       const [user] = await db
         .select({ id: users.id, passwordHash: users.passwordHash })
         .from(users)

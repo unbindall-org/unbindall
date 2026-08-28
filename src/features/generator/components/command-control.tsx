@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import type { CommandDefinition, ConfigState } from "../catalog/commands";
+import { isCommandEditable, type CommandDefinition, type ConfigState } from "../catalog/commands";
 
 export function CommandControl({
   command,
@@ -20,7 +20,8 @@ export function CommandControl({
   const { t } = useTranslation();
   const enabled = Boolean(state[`enabled:${command.name}`]);
   const value = state[command.name];
-  const deprecated = command.status.verification === "deprecated";
+
+  if (!isCommandEditable(command)) return null;
 
   function setValue(next: string | number | boolean) {
     onChange(command.name, next);
@@ -32,7 +33,6 @@ export function CommandControl({
       <Checkbox
         className="enable-check"
         checked={enabled}
-        disabled={deprecated}
         onCheckedChange={(checked) => onChange(`enabled:${command.name}`, checked === true)}
         aria-label={`${command.label} ${enabled ? t("Deaktivieren") : t("Aktivieren")}`}
       />
@@ -42,14 +42,6 @@ export function CommandControl({
           <span className="command-name">{command.name}</span>
         </div>
         <p className="command-desc">{command.description}</p>
-        <div className="command-statuses">
-          <span className={`command-status ${deprecated ? "is-deprecated" : "is-verified"}`}>
-            {t(deprecated ? "Veraltet" : "Verifiziert")}
-          </span>
-          {command.status.restrictions.includes("offline-only") && <span className="command-status is-restricted">{t("Nur offline")}</span>}
-          {command.status.restrictions.includes("requires-cheats") && <span className="command-status is-cheat">{t("Erfordert Cheats")}</span>}
-          <span className="command-status is-version">{t("Zuletzt mit CS2-Version {{version}} geprüft", { version: command.status.checkedVersion })}</span>
-        </div>
       </div>
       <div className="command-input">
         {command.type === "range" && (
@@ -59,7 +51,6 @@ export function CommandControl({
               max={command.max}
               step={command.step}
               value={[Number(value)]}
-              disabled={deprecated}
               onValueChange={(next) => setValue(next[0])}
               aria-label={command.label}
             />
@@ -70,7 +61,6 @@ export function CommandControl({
                 max={command.max}
                 step={command.step}
                 value={Number(value)}
-                disabled={deprecated}
                 onChange={(event) => setValue(Number(event.target.value))}
               />
               {command.unit && <span>{command.unit}</span>}
@@ -80,12 +70,12 @@ export function CommandControl({
         {command.type === "toggle" && (
           <div className="switch-control">
             <span className={Boolean(value) ? "" : "active"}>{t("Aus")}</span>
-            <Switch checked={Boolean(value)} disabled={deprecated} onCheckedChange={setValue} aria-label={command.label} />
+            <Switch checked={Boolean(value)} onCheckedChange={setValue} aria-label={command.label} />
             <span className={Boolean(value) ? "active" : ""}>{t("An")}</span>
           </div>
         )}
         {command.type === "select" && (
-          <Select value={String(value)} disabled={deprecated} onValueChange={(next) => {
+          <Select value={String(value)} onValueChange={(next) => {
             const option = command.options?.find((item) => String(item.value) === next);
             if (option) setValue(option.value);
           }}>
@@ -99,7 +89,6 @@ export function CommandControl({
           <Input
             className="command-text-input"
             value={String(value)}
-            disabled={deprecated}
             maxLength={120}
             onChange={(event) => setValue(event.target.value)}
             aria-label={command.label}

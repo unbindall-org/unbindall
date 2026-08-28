@@ -25,9 +25,23 @@ COPY . .
 # Next evaluates the server modules while producing the build. These values are
 # build-only placeholders and are not inherited by the runtime image.
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
+ENV AUTH_SECRET="build-only-secret-at-least-32-characters"
+ENV AUTH_URL="https://build.example.com"
+ENV AUTH_EXPECTED_HOST="build.example.com"
+ENV AUTH_TRUST_HOST="false"
+ENV REDIS_URL="redis://localhost:6379"
 
 RUN mkdir -p public \
   && pnpm build
+
+FROM dependencies AS migrator
+WORKDIR /app
+
+COPY drizzle.config.ts tsconfig.json ./
+COPY drizzle ./drizzle
+COPY src/db ./src/db
+
+CMD ["pnpm", "db:migrate"]
 
 FROM node:22-alpine AS runner
 WORKDIR /app

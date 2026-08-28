@@ -699,6 +699,10 @@ export const commands: CommandDefinition[] = catalogCommands.map((command) => ({
   status: command.status ?? verifiedStatus(),
 }));
 
+export function isCommandEditable(command: CommandDefinition) {
+  return command.status.verification === "verified";
+}
+
 export const bindActions = [
   { id: "forward", group: "Bewegung", label: "Vorwärts", command: "+forward", defaultKey: "w", defaultEnabled: true },
   { id: "back", group: "Bewegung", label: "Rückwärts", command: "+back", defaultKey: "s", defaultEnabled: true },
@@ -734,6 +738,41 @@ export const bindActions = [
   { id: "console", group: "Interface", label: "Konsole", command: "toggleconsole", defaultKey: "`", defaultEnabled: false },
   { id: "cleardecals", group: "Interface", label: "Konsole leeren", command: "clear", defaultKey: "-", defaultEnabled: false },
 ] as const;
+
+export type CommandRegistryEntry = {
+  id: string;
+  name: string;
+  label: string;
+  description: string;
+  area: CategoryId | (typeof bindActions)[number]["group"];
+  source: "setting" | "bind";
+  status: CommandStatus;
+};
+
+/**
+ * Single inventory for every command offered by the app. Deprecated settings
+ * stay visible here for transparency, but are intentionally not editable.
+ */
+export const commandRegistry: CommandRegistryEntry[] = [
+  ...commands.map((command) => ({
+    id: `setting:${command.name}`,
+    name: command.name,
+    label: command.label,
+    description: command.description,
+    area: command.category,
+    source: "setting" as const,
+    status: command.status,
+  })),
+  ...bindActions.map((action) => ({
+    id: `bind:${action.id}`,
+    name: action.command,
+    label: action.label,
+    description: "Verifizierte Standardaktion für Keybinds.",
+    area: action.group,
+    source: "bind" as const,
+    status: verifiedStatus(),
+  })),
+];
 
 export type ConfigState = Record<string, string | number | boolean>;
 

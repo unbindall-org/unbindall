@@ -12,10 +12,20 @@ const globalForDb = globalThis as unknown as {
   postgresClient?: ReturnType<typeof postgres>;
 };
 
+const configuredPoolSize = Number(process.env.DATABASE_POOL_MAX);
+const poolSize = Number.isInteger(configuredPoolSize) && configuredPoolSize > 0
+  ? configuredPoolSize
+  : process.env.NODE_ENV === "production" ? 10 : 1;
+const configuredConnectTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS);
+const connectTimeout = Number.isFinite(configuredConnectTimeout) && configuredConnectTimeout > 0
+  ? configuredConnectTimeout
+  : 5;
+
 const client =
   globalForDb.postgresClient ??
   postgres(connectionString, {
-    max: process.env.NODE_ENV === "production" ? 10 : 1,
+    max: poolSize,
+    connect_timeout: connectTimeout,
     prepare: false,
   });
 

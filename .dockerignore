@@ -1,6 +1,9 @@
 .git
 .github
 .next
+.next-e2e
+playwright-report
+test-results
 node_modules
 
 .env
@@ -12,5 +15,5 @@ node_modules
 .DS_Store
 
 docs
-drizzle/meta
-
+drizzle/meta/*
+!drizzle/meta/_journal.json
