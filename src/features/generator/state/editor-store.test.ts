@@ -109,4 +109,29 @@ describe("generator editor store", () => {
     expect(store.getState().origin).toEqual({ type: "anonymous" });
     expect(store.getState().name).toBe("Imported");
   });
+
+  it("tracks which browser-only config is currently displayed", () => {
+    const store = createGeneratorEditorStore({ hydration: "ready" });
+    const localOrigin = { type: "local", configId: "local-1" } as const;
+
+    store.getState().importDocument(createDefaultDocument("practice"), "Local", localOrigin);
+    expect(store.getState().origin).toEqual(localOrigin);
+
+    store.getState().updateCommand("sv_cheats", true);
+    expect(store.getState().origin).toEqual(localOrigin);
+    expect(store.getState().sync).toEqual({ status: "local" });
+  });
+
+  it("exposes a failed cloud load as a retryable editor state", () => {
+    const store = createGeneratorEditorStore({ hydration: "ready" });
+
+    store.getState().beginCloudLoad();
+    store.getState().cloudLoadFailed("config-1", "Network unavailable");
+
+    expect(store.getState().sync).toEqual({
+      status: "load-error",
+      configId: "config-1",
+      message: "Network unavailable",
+    });
+  });
 });

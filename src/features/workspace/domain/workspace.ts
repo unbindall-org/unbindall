@@ -53,6 +53,7 @@ export type StoredWorkspace = {
 
 export type WorkspaceTabDescriptor =
   | { kind: "start" }
+  | { kind: "new-config" }
   | { kind: "config"; configId: string }
   | { kind: "community" }
   | { kind: "community-post" }
@@ -73,11 +74,12 @@ export function toTab(descriptor: WorkspaceTabDescriptor): WorkspaceTab {
 }
 
 /**
- * The file explorer belongs to the configurator. Standalone pages — community,
- * the command register, trash, settings — are read on their own and run without
- * it. No tab at all means the workspace root, which keeps the explorer.
+ * The file explorer belongs to the configurator and stays available in the
+ * trash so users keep their workspace context. Other standalone pages —
+ * community, the command register, settings — run without it. No tab at all
+ * means the workspace root, which keeps the explorer.
  */
-const explorerTabKinds = new Set<WorkspaceTabDescriptor["kind"]>(["config", "start"]);
+const explorerTabKinds = new Set<WorkspaceTabDescriptor["kind"]>(["config", "new-config", "start", "trash"]);
 
 export function tabUsesExplorer(tab: WorkspaceTabDescriptor | null) {
   return !tab || explorerTabKinds.has(tab.kind);
@@ -145,7 +147,7 @@ function normalizeTabs(value: unknown): WorkspaceTabDescriptor[] {
       const configId = (item as { configId?: unknown }).configId;
       return typeof configId === "string" ? [{ kind, configId }] : [];
     }
-    return ["start", "community", "community-post", "trash", "commands", "settings", "moderation", "admin"].includes(kind as string)
+    return ["start", "new-config", "community", "community-post", "trash", "commands", "settings", "moderation", "admin"].includes(kind as string)
       ? [{ kind } as WorkspaceTabDescriptor]
       : [];
   });

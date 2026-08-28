@@ -180,8 +180,18 @@ export function createWorkspaceStore(initial?: Partial<WorkspaceState>) {
 
 const WorkspaceStoreContext = createContext<WorkspaceStoreApi | null>(null);
 
-export function WorkspaceStoreProvider({ children }: { children: ReactNode }) {
-  const [store] = useState(() => createWorkspaceStore());
+export function WorkspaceStoreProvider({
+  children,
+  initialTab,
+}: {
+  children: ReactNode;
+  initialTab?: WorkspaceTabDescriptor;
+}) {
+  const [store] = useState(() => {
+    if (!initialTab) return createWorkspaceStore();
+    const tab = toTab(initialTab);
+    return createWorkspaceStore({ tabs: [tab], activeTabId: tab.id });
+  });
   return createElement(WorkspaceStoreContext.Provider, { value: store }, children);
 }
 

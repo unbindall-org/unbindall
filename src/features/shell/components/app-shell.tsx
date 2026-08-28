@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { inferRouterOutputs } from "@trpc/server";
+import { CircleAlert, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Session } from "next-auth";
@@ -28,8 +29,9 @@ import {
   removePendingAutosave,
 } from "@/features/generator/persistence/autosave-store";
 import { createAutosaveController } from "@/features/generator/persistence/autosave-controller";
-import { hydrateDraftStore, startDraftPersistence } from "@/features/generator/persistence/draft-store";
+import { hydrateDraftStore, readDraft, startDraftPersistence } from "@/features/generator/persistence/draft-store";
 import {
+  editorFingerprint,
   GeneratorEditorStoreProvider,
   useGeneratorEditorStore,
   useGeneratorEditorStoreApi,
@@ -52,13 +54,14 @@ import { ModerationPage } from "@/features/platform/components/moderation-page";
 import {
   buildTree,
   defaultProjectName,
+  tabId,
   tabUsesExplorer,
   toTab,
   type WorkspaceFile,
   type WorkspaceProject,
   type WorkspaceTabDescriptor,
 } from "@/features/workspace/domain/workspace";
-import { pathForTab } from "@/features/workspace/domain/routes";
+import { pathForTab, tabForPath } from "@/features/workspace/domain/routes";
 import {
   hydrateWorkspaceStore,
   startWorkspacePersistence,
@@ -70,7 +73,7 @@ import {
 } from "@/features/workspace/state/workspace-store";
 import { ActivityBar } from "./activity-bar";
 import { AppSidebar } from "./app-sidebar";
-import { NewConfigDialog, type NewConfigRequest } from "./new-config-dialog";
+import { NewConfigPage, type NewConfigRequest } from "./new-config-page";
 import { ProjectNameDialog } from "./project-name-dialog";
 import { SettingsPage } from "./settings-page";
 import { StartPage } from "./start-page";
@@ -80,28 +83,54 @@ import { describeTabs, TabBar } from "./tab-bar";
 type UserShape = Session["user"] | null;
 export type AuthProviders = { discord: boolean; steam: boolean };
 type SavedConfig = inferRouterOutputs<AppRouter>["config"]["list"][number];
+type SavedProject = inferRouterOutputs<AppRouter>["project"]["list"][number];
+type LoadedConfig = inferRouterOutputs<AppRouter>["config"]["get"];
 type TrashedConfig = inferRouterOutputs<AppRouter>["config"]["trash"][number];
 
 const LOCAL_PROJECT_PREFIX = "local:";
 /** Stands in for "the account's default project" before one exists on the server. */
 const CLOUD_DEFAULT_PROJECT_ID = "default";
 
-export type ShellProps = { user: UserShape; authProviders: AuthProviders; initialCatalog: CommandCatalogSnapshot; initialTab?: WorkspaceTabDescriptor };
+function workspaceLocation(path: string) {
+  return `${path}${window.location.search}${window.location.hash}`;
+}
+
+export type ShellProps = {
+  user: UserShape;
+  authProviders: AuthProviders;
+  initialCatalog: CommandCatalogSnapshot;
+  initialConfigs: SavedConfig[];
+  initialProjects: SavedProject[];
+  initialConfig: LoadedConfig | null;
+  initialTab?: WorkspaceTabDescriptor;
+};
 
 export function AppShell(props: ShellProps) {
   const { t, i18n } = useTranslation();
   const editorLocale = i18n.resolvedLanguage === "en" ? "en" : "de";
   const initialCommands = useMemo(() => localizeCatalog(props.initialCatalog, editorLocale), [editorLocale, props.initialCatalog]);
   return (
-    <WorkspaceStoreProvider>
-      <GeneratorEditorStoreProvider initialName={t(defaultConfigName("matchmaking"))} catalog={initialCommands}>
+    <WorkspaceStoreProvider initialTab={props.initialTab}>
+      <GeneratorEditorStoreProvider
+        initialName={t(defaultConfigName("matchmaking"))}
+        catalog={initialCommands}
+        initialConfig={props.initialConfig}
+      >
         <AppShellContent {...props} />
       </GeneratorEditorStoreProvider>
     </WorkspaceStoreProvider>
   );
 }
 
-function AppShellContent({ user, authProviders, initialCatalog, initialTab }: ShellProps) {
+function AppShellContent({
+  user,
+  authProviders,
+  initialCatalog,
+  initialConfigs,
+  initialProjects,
+  initialConfig,
+  initialTab,
+}: ShellProps) {
   const { t, i18n } = useTranslation();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -140,12 +169,20 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
   const currentRevision = origin.type === "cloud" ? origin.revision : 0;
   const syncStatus = sync.status;
 
-  const configsQuery = useQuery(trpc.config.list.queryOptions(undefined, { enabled: signedIn, retry: false }));
+  const configsQuery = useQuery(trpc.config.list.queryOptions(undefined, {
+    enabled: signedIn,
+    retry: false,
+    initialData: initialConfigs,
+  }));
   const catalogQuery = useQuery(trpc.catalog.public.queryOptions(undefined, {
     initialData: initialCatalog,
     staleTime: 60_000,
   }));
-  const projectsQuery = useQuery(trpc.project.list.queryOptions(undefined, { enabled: signedIn, retry: false }));
+  const projectsQuery = useQuery(trpc.project.list.queryOptions(undefined, {
+    enabled: signedIn,
+    retry: false,
+    initialData: initialProjects,
+  }));
   const createConfigMutation = useMutation(trpc.config.create.mutationOptions());
   const saveConfigMutation = useMutation(trpc.config.save.mutationOptions());
   const { mutateAsync: autosaveConfig } = useMutation(trpc.config.autosave.mutationOptions());
@@ -162,7 +199,6 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
   const [saveOpen, setSaveOpen] = useState(false);
   const [outputOpen, setOutputOpen] = useState(false);
   const [transferPending, setTransferPending] = useState(false);
-  const [newConfigOpen, setNewConfigOpen] = useState(false);
   const [newConfigProjectId, setNewConfigProjectId] = useState<string | null>(null);
   const [projectDialog, setProjectDialog] = useState<{ mode: "create" | "rename"; id?: string; name: string } | null>(null);
   const [historyConfig, setHistoryConfig] = useState<SavedConfig | null>(null);
@@ -184,6 +220,7 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
 
   const importRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const bootConfigRef = useRef(initialConfig);
   /** Which local (browser-only) config the editor currently mirrors. */
   const openLocalIdRef = useRef<string | null>(null);
   const savedConfigs = useMemo(() => configsQuery.data ?? [], [configsQuery.data]);
@@ -203,6 +240,26 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
   }, [activeTabId, canAdminister, canModerate, initialTab, tabs, workspaceHydrated]);
   const activeConfigId = activeTab?.kind === "config" ? activeTab.configId : null;
   const explorerVisible = tabUsesExplorer(activeTab);
+  const activeLocalConfig = activeConfigId
+    ? localConfigs.find((config) => config.id === activeConfigId)
+    : null;
+  const activeConfigReady = !activeConfigId || (activeLocalConfig
+    ? origin.type === "local" && origin.configId === activeConfigId
+    : origin.type === "cloud" && origin.configId === activeConfigId);
+
+  /**
+   * Workspace content already lives in client state, so history updates do not
+   * need to wait for a server navigation. Next.js integrates the native History
+   * API with its router; updating the address first and the store second keeps
+   * both the URL and the visible tab synchronous with the click.
+   */
+  const navigateToTab = useCallback((descriptor: WorkspaceTabDescriptor) => {
+    const path = pathForTab(descriptor);
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, "", workspaceLocation(path));
+    }
+    workspaceStore.getState().openTab(descriptor);
+  }, [workspaceStore]);
 
   /* ---------------------------------------------------------------- files */
 
@@ -278,17 +335,58 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
     }
   }, [canAdminister, canModerate, tabs, workspaceHydrated, workspaceStore]);
 
-  // Areas are addressable, so the location bar keeps up with the active tab.
-  // replaceState rather than push: tabs are not a history stack.
+  // Back/forward changes the URL first. Re-focus (or re-open) its workspace tab
+  // immediately, without waiting for a server round-trip.
+  useEffect(() => {
+    if (!workspaceHydrated) return;
+    function syncTabFromLocation() {
+      const descriptor = tabForPath(window.location.pathname);
+      if (!descriptor) return;
+      if (
+        (descriptor.kind === "admin" && !canAdminister) ||
+        (descriptor.kind === "moderation" && !canModerate)
+      ) {
+        const current = workspaceStore.getState();
+        const fallback = current.tabs.find((tab) => tab.id === current.activeTabId) ?? null;
+        window.history.replaceState(null, "", workspaceLocation(pathForTab(fallback)));
+        return;
+      }
+      if (workspaceStore.getState().activeTabId !== tabId(descriptor)) {
+        workspaceStore.getState().openTab(descriptor);
+      }
+    }
+
+    syncTabFromLocation();
+    window.addEventListener("popstate", syncTabFromLocation);
+    return () => window.removeEventListener("popstate", syncTabFromLocation);
+  }, [canAdminister, canModerate, workspaceHydrated, workspaceStore]);
+
+  // Closing, pruning, or completing a temporary tab changes workspace state
+  // without being a new navigation. Keep that correction in the current entry.
   useEffect(() => {
     if (!workspaceHydrated) return;
     const path = pathForTab(activeTab);
     if (window.location.pathname === path) return;
-    window.history.replaceState(null, "", `${path}${window.location.search}`);
+    window.history.replaceState(null, "", workspaceLocation(path));
   }, [activeTab, workspaceHydrated]);
 
   useEffect(() => {
-    hydrateDraftStore(editorStore, window.localStorage, signedIn);
+    const bootConfig = bootConfigRef.current;
+    if (!bootConfig) {
+      hydrateDraftStore(editorStore, window.localStorage, signedIn);
+    } else {
+      // The server result is the first paint. Only an actually modified draft
+      // for this exact cloud config may replace it after hydration.
+      const draft = readDraft(window.localStorage, true);
+      if (draft.cloud?.configId === bootConfig.id && draft.document) {
+        const draftName = draft.name ?? bootConfig.name;
+        const document = normalizeDocument(draft.document, editorStore.getState().catalog);
+        if (editorFingerprint(draftName, document) !== draft.cloud.lastSyncedFingerprint) {
+          editorStore.getState().hydrateDraft({ ...draft, name: draftName, document });
+          editorStore.getState().replaceDocument(document);
+        }
+      }
+    }
     return startDraftPersistence(editorStore, window.localStorage);
   }, [editorStore, signedIn]);
 
@@ -309,12 +407,16 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
     editorStore.getState().beginCloudLoad();
     try {
       const loaded = await queryClient.fetchQuery(trpc.config.get.queryOptions({ id }));
+      if (workspaceStore.getState().activeTabId !== tabId({ kind: "config", configId: id })) return;
       editorStore.getState().loadCloudConfig(loaded);
       await removePendingAutosave(loaded.id).catch(() => undefined);
     } catch (error) {
-      toast.error(error instanceof Error ? t(error.message) : t("Config konnte nicht geladen werden."));
+      if (workspaceStore.getState().activeTabId !== tabId({ kind: "config", configId: id })) return;
+      const message = error instanceof Error ? t(error.message) : t("Config konnte nicht geladen werden.");
+      editorStore.getState().cloudLoadFailed(id, message);
+      toast.error(message);
     }
-  }, [editorStore, queryClient, t, trpc.config.get]);
+  }, [editorStore, queryClient, t, trpc.config.get, workspaceStore]);
 
   useEffect(() => {
     if (!workspaceHydrated || hydration !== "ready" || !activeConfigId) return;
@@ -322,14 +424,19 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
     if (local) {
       if (openLocalIdRef.current === local.id) return;
       openLocalIdRef.current = local.id;
-      editorStore.getState().importDocument(local.document, local.name);
+      editorStore.getState().importDocument(local.document, local.name, { type: "local", configId: local.id });
       return;
     }
     openLocalIdRef.current = null;
     if (origin.type === "cloud" && origin.configId === activeConfigId) return;
     if (!signedIn) return;
-    void loadCloudConfig(activeConfigId);
-  }, [activeConfigId, editorStore, hydration, loadCloudConfig, origin, signedIn, workspaceHydrated, workspaceStore]);
+    if (initialConfig?.id === activeConfigId) {
+      editorStore.getState().loadCloudConfig(initialConfig);
+      return;
+    }
+    const loadTimer = window.setTimeout(() => void loadCloudConfig(activeConfigId), 0);
+    return () => window.clearTimeout(loadTimer);
+  }, [activeConfigId, editorStore, hydration, initialConfig, loadCloudConfig, origin, signedIn, workspaceHydrated, workspaceStore]);
 
   /** Tabs pointing at configs that no longer exist are dropped once data arrives. */
   useEffect(() => {
@@ -449,15 +556,21 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
   /* --------------------------------------------------------------- actions */
 
   function openFile(file: WorkspaceFile) {
-    workspaceStore.getState().openTab({ kind: "config", configId: file.id });
+    navigateToTab({ kind: "config", configId: file.id });
   }
 
   function selectTab(id: string) {
-    workspaceStore.getState().setActiveTab(id);
+    const tab = workspaceStore.getState().tabs.find((candidate) => candidate.id === id);
+    if (tab) navigateToTab(tab);
   }
 
   function closeTab(id: string) {
     workspaceStore.getState().closeTab(id);
+  }
+
+  function openNewConfig(projectId?: string) {
+    setNewConfigProjectId(projectId ?? null);
+    navigateToTab({ kind: "new-config" });
   }
 
   function resolveLocalProjectId(projectId: string | null) {
@@ -487,8 +600,8 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
       const projectId = resolveLocalProjectId(request.projectId);
       const record = workspaceStore.getState()
         .addLocalConfig(projectId, request.name, request.configType, document);
+      workspaceStore.getState().closeTab("new-config");
       workspaceStore.getState().openTab({ kind: "config", configId: record.id });
-      setNewConfigOpen(false);
       toast.success(t("configCreated", { name: record.name }));
       return;
     }
@@ -504,8 +617,8 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
       });
       updateCachedConfig(saved);
       await queryClient.invalidateQueries({ queryKey: trpc.project.list.queryKey() });
+      workspaceStore.getState().closeTab("new-config");
       workspaceStore.getState().openTab({ kind: "config", configId: saved.id });
-      setNewConfigOpen(false);
       toast.success(t("configCreated", { name: saved.name }));
     } catch (error) {
       toast.error(error instanceof Error ? t(error.message) : t("Config konnte nicht angelegt werden."));
@@ -824,9 +937,9 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
           userName={user?.name ?? null}
           recent={recentFiles}
           onOpenFile={openFile}
-          onNewConfig={() => { setNewConfigProjectId(null); setNewConfigOpen(true); }}
+          onNewConfig={() => openNewConfig()}
           onImport={requestImport}
-          onOpenCommunity={() => workspaceStore.getState().openTab({ kind: "community" })}
+          onOpenCommunity={() => navigateToTab({ kind: "community" })}
           onOpenAuth={() => setAuthOpen(true)}
         />
       );
@@ -834,11 +947,22 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
 
     switch (activeTab.kind) {
       case "community":
-        return <CommunityFeed onOpenNewPost={() => workspaceStore.getState().openTab({ kind: "community-post" })} />;
+        return <CommunityFeed onOpenNewPost={() => navigateToTab({ kind: "community-post" })} />;
       case "community-post":
         return <CommunityNewPost files={files} />;
       case "commands":
         return <CommandRegisterPage commands={localizedCommands} />;
+      case "new-config":
+        return (
+          <NewConfigPage
+            key={newConfigProjectId ?? "default"}
+            projects={projects}
+            defaultProjectId={newConfigProjectId ?? projects[0]?.id ?? null}
+            pending={createConfigMutation.isPending}
+            onCancel={() => workspaceStore.getState().closeTab(activeTab.id)}
+            onCreate={(request) => void createConfig(request)}
+          />
+        );
       case "trash":
         return (
           <TrashPage
@@ -858,8 +982,8 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
             onShowAllCommandsChange={setShowAllCommands}
             onOpenAccount={() => setAccountOpen(true)}
             onOpenAuth={() => setAuthOpen(true)}
-            onOpenTrash={() => workspaceStore.getState().openTab({ kind: "trash" })}
-            onOpenCommandRegister={() => workspaceStore.getState().openTab({ kind: "commands" })}
+            onOpenTrash={() => navigateToTab({ kind: "trash" })}
+            onOpenCommandRegister={() => navigateToTab({ kind: "commands" })}
           />
         );
       case "moderation":
@@ -867,6 +991,36 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
       case "admin":
         return canAdminister && user ? <AdminPage currentUserId={user.id} /> : null;
       case "config":
+        if (!activeConfigReady) {
+          const loadError = sync.status === "load-error" && sync.configId === activeTab.configId
+            ? sync.message
+            : null;
+          return (
+            <div className="page" aria-busy={!loadError}>
+              <div className="page-inner">
+                {loadError ? (
+                  <div className="empty-state compact" role="alert">
+                    <CircleAlert size={26} />
+                    <h2>{t("Config konnte nicht geladen werden.")}</h2>
+                    <p>{loadError}</p>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => void loadCloudConfig(activeTab.configId)}
+                    >
+                      {t("Erneut versuchen")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="page-loading" role="status" aria-live="polite">
+                    <LoaderCircle className="spin" size={22} />
+                    {t("Config wird geladen.")}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
         return (
           <GeneratorWorkspace
             document={generatorDocument}
@@ -893,9 +1047,9 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
             userName={user?.name ?? null}
             recent={recentFiles}
             onOpenFile={openFile}
-            onNewConfig={() => { setNewConfigProjectId(null); setNewConfigOpen(true); }}
+            onNewConfig={() => openNewConfig()}
             onImport={requestImport}
-            onOpenCommunity={() => workspaceStore.getState().openTab({ kind: "community" })}
+            onOpenCommunity={() => navigateToTab({ kind: "community" })}
             onOpenAuth={() => setAuthOpen(true)}
           />
         );
@@ -915,13 +1069,13 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
         user={user}
         activeTabId={activeTabId}
         role={user?.role ?? null}
-        onOpenStart={() => workspaceStore.getState().openTab({ kind: "start" })}
-        onOpenCommunity={() => workspaceStore.getState().openTab({ kind: "community" })}
-        onOpenCommands={() => workspaceStore.getState().openTab({ kind: "commands" })}
-        onOpenModeration={() => workspaceStore.getState().openTab({ kind: "moderation" })}
-        onOpenAdmin={() => workspaceStore.getState().openTab({ kind: "admin" })}
+        onOpenStart={() => navigateToTab({ kind: "start" })}
+        onOpenCommunity={() => navigateToTab({ kind: "community" })}
+        onOpenCommands={() => navigateToTab({ kind: "commands" })}
+        onOpenModeration={() => navigateToTab({ kind: "moderation" })}
+        onOpenAdmin={() => navigateToTab({ kind: "admin" })}
         onOpenAccount={() => signedIn ? setAccountOpen(true) : setAuthOpen(true)}
-        onOpenSettings={() => workspaceStore.getState().openTab({ kind: "settings" })}
+        onOpenSettings={() => navigateToTab({ kind: "settings" })}
       />
 
       {explorerVisible && <AppSidebar
@@ -934,7 +1088,7 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
         loading={signedIn && configsQuery.isPending}
         transferPending={transferPending}
         onOpenFile={openFile}
-        onNewConfig={(projectId) => { setNewConfigProjectId(projectId ?? null); setNewConfigOpen(true); }}
+        onNewConfig={openNewConfig}
         onNewProject={() => setProjectDialog({ mode: "create", name: "" })}
         onRenameProject={(id) => setProjectDialog({
           mode: "rename",
@@ -948,8 +1102,8 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
           if (config) setHistoryConfig(config);
         }}
         onTransferLocal={() => void transferLocalWorkspace()}
-        onOpenTrash={() => workspaceStore.getState().openTab({ kind: "trash" })}
-        onOpenCommands={() => workspaceStore.getState().openTab({ kind: "commands" })}
+        onOpenTrash={() => navigateToTab({ kind: "trash" })}
+        onOpenCommands={() => navigateToTab({ kind: "commands" })}
         onImport={requestImport}
       />}
 
@@ -958,8 +1112,14 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
           tabs={tabDescriptors}
           activeTabId={activeTabId}
           showPanelToggle={explorerVisible}
-          sync={signedIn && activeConfigId ? sync : null}
-          output={activeConfigId ? { fileName: configDefinition.fileName, onOpen: () => setOutputOpen(true) } : null}
+          sync={signedIn && activeConfigId
+            ? (activeConfigReady || (sync.status === "load-error" && sync.configId === activeConfigId)
+              ? sync
+              : { status: "hydrating" })
+            : null}
+          output={activeConfigId && activeConfigReady
+            ? { fileName: configDefinition.fileName, onOpen: () => setOutputOpen(true) }
+            : null}
           onSelect={selectTab}
           onClose={closeTab}
         />
@@ -986,15 +1146,6 @@ function AppShellContent({ user, authProviders, initialCatalog, initialTab }: Sh
         onOpenChange={setOutputOpen}
         onCopy={() => void copyConfig()}
         onDownload={downloadConfig}
-      />
-
-      <NewConfigDialog
-        open={newConfigOpen}
-        projects={projects}
-        defaultProjectId={newConfigProjectId ?? projects[0]?.id ?? null}
-        pending={createConfigMutation.isPending}
-        onOpenChange={setNewConfigOpen}
-        onCreate={(request) => void createConfig(request)}
       />
 
       <ProjectNameDialog

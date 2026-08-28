@@ -4,6 +4,7 @@ import { hasRole, type UserRole } from "@/features/auth/domain/roles";
 import { getPublishedCommandCatalog } from "@/features/generator/catalog/server/catalog-repository";
 import { AppShell } from "@/features/shell/components/app-shell";
 import type { WorkspaceTabDescriptor } from "@/features/workspace/domain/workspace";
+import { appRouter } from "@/trpc/router";
 
 /**
  * Every addressable area renders the same workspace shell and only differs in
@@ -21,10 +22,22 @@ export async function WorkspacePage({
     redirect("/");
   }
 
+  const caller = appRouter.createCaller({ session });
+  const [initialConfigs, initialProjects] = session?.user
+    ? await Promise.all([caller.config.list(), caller.project.list()])
+    : [[], []];
+  const requestedConfigId = initialTab?.kind === "config" ? initialTab.configId : null;
+  const initialConfig = requestedConfigId && initialConfigs.some((config) => config.id === requestedConfigId)
+    ? await caller.config.get({ id: requestedConfigId })
+    : null;
+
   return (
     <AppShell
       user={session?.user ?? null}
       initialCatalog={initialCatalog}
+      initialConfigs={initialConfigs}
+      initialProjects={initialProjects}
+      initialConfig={initialConfig}
       initialTab={initialTab}
       authProviders={{
         discord: Boolean(process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET),

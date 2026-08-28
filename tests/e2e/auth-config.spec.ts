@@ -37,5 +37,11 @@ test("registriert sich, übernimmt eine lokale Config und lädt sie nach erneute
   await accountDialog.getByLabel("Passwort").fill(password);
   await accountDialog.getByRole("button", { name: "Anmelden", exact: true }).click();
   await expect(page.getByRole("button", { name: "Benutzermenü: Browser User" })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Meine Matchmaking Config", exact: true })).toBeVisible();
+  const savedConfig = page.getByRole("button", { name: "Meine Matchmaking Config", exact: true });
+  await expect(savedConfig).toBeVisible();
+
+  await savedConfig.click();
+  await expect(page).toHaveURL(/\/configs\/[0-9a-f-]+$/);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Config-Name" })).toHaveValue("Meine Matchmaking Config");
 });

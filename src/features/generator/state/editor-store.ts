@@ -14,11 +14,15 @@ export type CloudOrigin = {
   validated: boolean;
 };
 
-export type EditorOrigin = { type: "anonymous" } | CloudOrigin;
+export type EditorOrigin =
+  | { type: "anonymous" }
+  | { type: "local"; configId: string }
+  | CloudOrigin;
 
 export type SyncState =
   | { status: "local" }
   | { status: "hydrating" }
+  | { status: "load-error"; configId: string; message: string }
   | { status: "saved"; savedAt: string | null }
   | { status: "dirty"; dirtySince: number }
   | { status: "syncing"; mutationId: string; fingerprint: string }
@@ -68,8 +72,9 @@ export type GeneratorEditorActions = {
   setShowAllCommands(showAll: boolean): void;
   setSliderActive(active: boolean): void;
   createAnonymousDocument(configType: ConfigType, name: string): void;
-  importDocument(document: GeneratorDocument, name?: string): void;
+  importDocument(document: GeneratorDocument, name?: string, origin?: Extract<EditorOrigin, { type: "local" }>): void;
   beginCloudLoad(): void;
+  cloudLoadFailed(configId: string, message: string): void;
   loadCloudConfig(config: LoadedCloudConfig): void;
   validateCloudOrigin(revision: number): void;
   detachCloud(name?: string): void;
@@ -175,11 +180,11 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
       }));
     },
 
-    importDocument(document, name) {
+    importDocument(document, name, origin) {
       set((state) => ({
         document: normalizeDocument(document, state.catalog),
         name: name ?? state.name,
-        origin: { type: "anonymous" },
+        origin: origin ?? (state.origin.type === "local" ? state.origin : { type: "anonymous" }),
         sync: { status: "local" },
         query: "",
         showAllCommands: true,
@@ -188,6 +193,10 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
 
     beginCloudLoad() {
       set({ sync: { status: "hydrating" } });
+    },
+
+    cloudLoadFailed(configId, message) {
+      set({ sync: { status: "load-error", configId, message } });
     },
 
     loadCloudConfig(config) {
@@ -293,8 +302,34 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
 
 const GeneratorEditorStoreContext = createContext<GeneratorEditorStoreApi | null>(null);
 
-export function GeneratorEditorStoreProvider({ children, initialName, catalog }: { children: ReactNode; initialName: string; catalog: CommandDefinition[] }) {
-  const [store] = useState(() => createGeneratorEditorStore({ name: initialName }, catalog));
+export function GeneratorEditorStoreProvider({
+  children,
+  initialName,
+  catalog,
+  initialConfig,
+}: {
+  children: ReactNode;
+  initialName: string;
+  catalog: CommandDefinition[];
+  initialConfig?: LoadedCloudConfig | null;
+}) {
+  const [store] = useState(() => {
+    if (!initialConfig) return createGeneratorEditorStore({ name: initialName }, catalog);
+    const document = normalizeDocument(initialConfig.values, catalog);
+    return createGeneratorEditorStore({
+      document,
+      name: initialConfig.name,
+      origin: {
+        type: "cloud",
+        configId: initialConfig.id,
+        revision: initialConfig.revision,
+        lastSyncedFingerprint: editorFingerprint(initialConfig.name, document),
+        validated: true,
+      },
+      sync: { status: "saved", savedAt: initialConfig.updatedAt },
+      hydration: "ready",
+    }, catalog);
+  });
   return createElement(GeneratorEditorStoreContext.Provider, { value: store }, children);
 }
 

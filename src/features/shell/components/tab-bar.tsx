@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   PanelLeft,
   PenSquare,
+  PlusSquare,
   Settings,
   ShieldCheck,
   ShieldUser,
@@ -36,6 +37,7 @@ type StaticKind = Exclude<WorkspaceTab["kind"], "config">;
 
 const staticTabs: Record<StaticKind, { label: string; Icon: LucideIcon }> = {
   start: { label: "Start", Icon: House },
+  "new-config": { label: "Neue Config", Icon: PlusSquare },
   community: { label: "Entdecken", Icon: Compass },
   "community-post": { label: "Neuer Post", Icon: PenSquare },
   trash: { label: "Papierkorb", Icon: Trash2 },
@@ -179,6 +181,8 @@ function describeSync(sync: SyncState, t: (key: string) => string) {
       return { tone: "warn", label: t("Konflikt"), hint: t("Auf dem Server liegt ein neuerer Stand."), spinning: false, Icon: CircleAlert };
     case "hydrating":
       return { tone: "busy", label: t("Lädt"), hint: t("Config wird geladen."), spinning: true, Icon: Cloud };
+    case "load-error":
+      return { tone: "warn", label: t("Ladefehler"), hint: sync.message, spinning: false, Icon: CircleAlert };
     default:
       return { tone: "pending", label: t("Nicht übernommen"), hint: t("Diese Datei liegt noch nicht in deinem Account."), spinning: false, Icon: CloudOff };
   }

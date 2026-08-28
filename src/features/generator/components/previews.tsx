@@ -13,6 +13,16 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function Silhouette({ x, y, scale = 1, opacity = 1 }: { x: number; y: number; scale?: number; opacity?: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`} opacity={opacity}>
+      <circle cx="0" cy="-14" r="5.5" />
+      <path d="M-4 -8 h8 l9 6 l3 20 l-4 1 l-2 -14 l1 20 h-16 l1 -20 l-2 14 l-4 -1 l3 -20Z" />
+      <path d="M1 23 h7 l1 21 h-7Z" /><path d="M-9 23 h7 l-1 21 h-7Z" />
+    </g>
+  );
+}
+
 /* --------------------------------------------------------------------------
    Crosshair — a first person look down an A site, with the real crosshair
    drawn on top in screen pixels so length, gap and thickness stay honest.
@@ -20,7 +30,7 @@ function clamp(value: number, min: number, max: number) {
 
 function CrosshairScene({ id }: { id: string }) {
   return (
-    <svg className="scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <svg className="preview-scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <defs>
         <linearGradient id={`${id}-sky`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#8fa6b8" /><stop offset="55%" stopColor="#c3b295" /><stop offset="100%" stopColor="#dcc9a4" />
@@ -72,25 +82,19 @@ function CrosshairScene({ id }: { id: string }) {
         <path d="M247 78 c-10-7-19-5-22 1 8-3 14-2 20 3Zm0 0 c9-8 19-7 22-1-8-3-14-2-20 4Zm0 0 c-5-10-2-17 4-19-3 7-3 12-1 18Z" />
       </g>
 
-      {/* site crates */}
+      {/* enemies, layered so the crates in front of them read as cover */}
+      <g fill="#262d21"><Silhouette x={116} y={100} scale={0.5} opacity={0.75} /></g>
+      <g>
+        <path d="M118 114 L146 111 L146 138 L118 143 Z" fill="#7d6340" />
+        <path d="M118 114 L98 117 L98 141 L118 143 Z" fill="#5f4b30" />
+        <path d="M98 117 L118 114 L146 111 L126 109 Z" fill="#96794a" />
+      </g>
+      <g fill="#242b1f"><Silhouette x={174} y={76} scale={0.92} /></g>
       <g>
         <path d="M186 96 L232 92 L232 130 L186 138 Z" fill="#8a6d45" />
         <path d="M186 96 L162 100 L162 134 L186 138 Z" fill="#6b5334" />
         <path d="M162 100 L186 96 L232 92 L208 88 Z" fill="#a3854f" />
         <path d="M190 104 L228 100 L228 126 L190 132 Z" fill="none" stroke="#5c4527" strokeWidth="2.5" />
-        <path d="M112 116 L140 113 L140 140 L112 145 Z" fill="#7d6340" />
-        <path d="M112 116 L94 119 L94 143 L112 145 Z" fill="#5f4b30" />
-        <path d="M94 119 L112 116 L140 113 L122 111 Z" fill="#96794a" />
-      </g>
-
-      {/* players */}
-      <g fill="#242b21">
-        <g transform="translate(206 78)">
-          <circle cx="0" cy="0" r="6" /><path d="M-7 7 h14 l3 22 h-20Z" /><path d="M-9 12 l-6 16 3 2 7-13Z" />
-        </g>
-        <g transform="translate(148 96) scale(.62)" opacity=".9">
-          <circle cx="0" cy="0" r="6" /><path d="M-7 7 h14 l3 22 h-20Z" /><path d="M4 30 h6 l1 16h-6Z" /><path d="M-10 30 h6 l-1 16h-6Z" />
-        </g>
       </g>
 
       <rect width="320" height="180" fill={`url(#${id}-vignette)`} />
@@ -146,50 +150,59 @@ export function CrosshairPreview({ state, compact = false }: { state: ConfigStat
    floor tone, so the union reads as one map without inner seams.
    -------------------------------------------------------------------------- */
 
-const RADAR_FLOOR = [
-  "M120 18 H184 V58 L156 70 L120 56 Z",        // A site
-  "M152 62 H180 V94 H152 Z",                    // palace
-  "M154 54 H186 V98 H154 Z",                    // A / CT link
-  "M126 94 H186 V132 H126 Z",                   // CT spawn
-  "M116 72 H156 V96 H116 Z",                    // connector
-  "M92 42 H116 V152 H92 Z",                     // mid
-  "M68 58 H96 V88 H68 Z",                       // window room
-  "M100 38 H122 V60 H100 Z",                    // ramp to A
-  "M18 24 H74 V62 L46 74 L18 60 Z",             // B site
-  "M44 60 H74 V106 H44 Z",                      // apartments
-  "M16 90 H62 V124 H16 Z",                      // market
-  "M58 102 H96 V124 H58 Z",                     // market to mid
-  "M16 118 H42 V170 H16 Z",                     // outside long
-  "M16 150 H62 V174 H16 Z",                     // T access
-  "M56 150 H148 V190 H56 Z",                    // T spawn
-  "M140 130 H180 V170 H140 Z",                  // CT rotate
-  "M138 160 H182 V186 H138 Z",
+// Rooms are rectangles, links are stroked centre lines. Both are painted twice:
+// once fat and dark for the outer wall, once on top in the floor tone, so the
+// union reads as one map without any inner seams.
+const RADAR_ROOMS = [
+  { x: 118, y: 26, width: 52, height: 34 },   // A site
+  { x: 30, y: 26, width: 50, height: 34 },    // B site
+  { x: 76, y: 64, width: 22, height: 20 },    // window room
+  { x: 130, y: 96, width: 44, height: 30 },   // CT spawn
+  { x: 60, y: 144, width: 80, height: 30 },   // T spawn
+  { x: 28, y: 88, width: 34, height: 28 },    // market
+];
+
+const RADAR_LINKS = [
+  "M100 148 L106 128 L106 62 L126 46",   // T spawn · mid · ramp to A
+  "M106 84 L142 84 L152 100",            // connector to CT
+  "M160 60 L160 100",                    // palace
+  "M52 60 L52 98",                       // apartments
+  "M62 100 L106 100",                    // market to mid
+  "M38 60 L38 92",                       // outside long
+  "M42 114 L42 150 L62 158",             // market to T
+  "M152 126 L152 158 L138 162",          // CT rotate
 ];
 
 function RadarMap() {
+  const rooms = RADAR_ROOMS.map((room) => <rect key={`${room.x}-${room.y}`} rx="3" {...room} />);
+  const links = RADAR_LINKS.map((d) => <path key={d} d={d} />);
   return (
     <>
-      <g fill="#232a30" stroke="#232a30" strokeWidth="7" strokeLinejoin="round">
-        {RADAR_FLOOR.map((d) => <path key={d} d={d} />)}
+      <g stroke="#1d2429" strokeWidth="5" strokeLinejoin="round" fill="#1d2429">{rooms}</g>
+      <g stroke="#1d2429" strokeWidth="19" strokeLinecap="round" strokeLinejoin="round" fill="none">{links}</g>
+      <g fill="#555f68">{rooms}</g>
+      <g stroke="#555f68" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" fill="none">{links}</g>
+
+      {/* crates and cover inside the sites */}
+      <g fill="#3c454c">
+        <rect x="126" y="34" width="13" height="9" rx="2" /><rect x="150" y="46" width="15" height="9" rx="2" />
+        <rect x="38" y="34" width="14" height="10" rx="2" /><rect x="62" y="46" width="13" height="9" rx="2" />
+        <rect x="138" y="104" width="28" height="8" rx="2" />
       </g>
-      <g fill="#4c555e">
-        {RADAR_FLOOR.map((d) => <path key={d} d={d} />)}
+
+      <g fill="var(--brand)" opacity=".22">
+        <rect x="122" y="30" width="44" height="26" rx="3" /><rect x="34" y="30" width="42" height="26" rx="3" />
       </g>
-      <g fill="none" stroke="#5f6a74" strokeWidth="1.4" opacity=".7">
-        <path d="M92 42 V152 M116 42 V152" /><path d="M44 60 V106 M74 60 V106" />
+      <g fill="#efe8dc" opacity=".65" fontFamily="var(--font-geist-mono), ui-monospace, monospace" fontWeight="700" textAnchor="middle">
+        <text x="144" y="51" fontSize="18">A</text>
+        <text x="55" y="51" fontSize="18">B</text>
+        <text x="88" y="112" fontSize="9" opacity=".7">MID</text>
       </g>
-      <g fill="var(--brand)" opacity=".18">
-        <rect x="126" y="24" width="50" height="30" rx="3" /><rect x="24" y="30" width="42" height="28" rx="3" />
-      </g>
-      <g fill="#e9e2d6" opacity=".62" fontFamily="var(--font-geist-mono), ui-monospace, monospace" fontWeight="700" textAnchor="middle">
-        <text x="151" y="47" fontSize="21">A</text>
-        <text x="45" y="52" fontSize="21">B</text>
-        <text x="104" y="112" fontSize="9" opacity=".8">MID</text>
-      </g>
-      {/* bomb on the ground at B */}
-      <g transform="translate(52 66)">
-        <circle r="4.4" fill="#f0c04a" stroke="#1b2024" strokeWidth="1.4" />
-        <circle r="1.5" fill="#1b2024" />
+
+      {/* dropped bomb near B */}
+      <g transform="translate(67 50)">
+        <circle r="4.4" fill="#f0c04a" stroke="#151a1e" strokeWidth="1.4" />
+        <circle r="1.5" fill="#151a1e" />
       </g>
     </>
   );
@@ -198,7 +211,7 @@ function RadarMap() {
 export function RadarPreview({ state }: { state: ConfigState }) {
   const { t } = useTranslation();
   const id = useId().replace(/:/g, "");
-  const zoom = 0.5 + clamp(numberValue(state, "cl_radar_scale", 0.4), 0.25, 1) * 1.25;
+  const zoom = 0.4 + clamp(numberValue(state, "cl_radar_scale", 0.4), 0.25, 1) * 0.78;
   const iconR = 2.8 + clamp(numberValue(state, "cl_radar_icon_scale_min", 0.6), 0.4, 1.25) * 2.6;
   const rotate = Boolean(state.cl_radar_rotate);
   const centered = Boolean(state.cl_radar_always_centered);
@@ -208,8 +221,8 @@ export function RadarPreview({ state }: { state: ConfigState }) {
   const R = 78;                       // radar radius in svg units
   const yaw = 34;                     // where "we" are looking
   const rot = rotate ? -yaw : 0;
-  const self = { x: 104, y: 143 };    // our position in map coordinates
-  const anchor = centered ? self : { x: 100, y: 104 };
+  const self = { x: 106, y: 122 };    // our position in map coordinates
+  const anchor = centered ? self : { x: 101, y: 100 };
 
   // Where the self marker lands once the map is anchored on its own centre.
   const rad = (rot * Math.PI) / 180;
@@ -219,7 +232,7 @@ export function RadarPreview({ state }: { state: ConfigState }) {
   const selfY = R + dx * Math.sin(rad) + dy * Math.cos(rad);
 
   const mates = [
-    { x: 104, y: 96 }, { x: 58, y: 112 }, { x: 138, y: 84 }, { x: 162, y: 40 },
+    { x: 106, y: 96 }, { x: 52, y: 106 }, { x: 130, y: 84 }, { x: 161, y: 38 },
   ].map((mate, index) => {
     const mx = (mate.x - anchor.x) * zoom;
     const my = (mate.y - anchor.y) * zoom;
@@ -231,7 +244,7 @@ export function RadarPreview({ state }: { state: ConfigState }) {
   });
 
   return (
-    <div className="radar-stage" style={{ transform: `scale(${hudScale})` }}>
+    <div className="radar-stage" style={{ "--hud": hudScale } as React.CSSProperties}>
       <svg className="radar-svg" viewBox="0 0 156 156" role="img" aria-label={t("Radar-Vorschau")}>
         <defs>
           <clipPath id={`${id}-clip`}><circle cx={R} cy={R} r={R} /></clipPath>
@@ -266,7 +279,7 @@ export function RadarPreview({ state }: { state: ConfigState }) {
           <path d={`M3 ${R} h6`} /><path d={`M${156 - 9} ${R} h6`} />
         </g>
       </svg>
-      <span className="radar-label">{rotate ? "Mid · rotating" : "Mid · north up"}{dynamic ? " · auto zoom" : ""}</span>
+      <span className="radar-label">Mid · {t(rotate ? "gedreht" : "Nord oben")}{dynamic ? ` · ${t("Auto-Zoom")}` : ""}</span>
     </div>
   );
 }
@@ -281,62 +294,65 @@ function Rifle({ id }: { id: string }) {
     <g>
       <defs>
         <linearGradient id={`${id}-metal`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#454f55" /><stop offset="45%" stopColor="#2b3237" /><stop offset="100%" stopColor="#1b2023" />
+          <stop offset="0%" stopColor="#4b555c" /><stop offset="42%" stopColor="#2c3439" /><stop offset="100%" stopColor="#181d21" />
         </linearGradient>
         <linearGradient id={`${id}-wood`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#8d6135" /><stop offset="55%" stopColor="#6b4526" /><stop offset="100%" stopColor="#4a2e18" />
+          <stop offset="0%" stopColor="#7c5631" /><stop offset="55%" stopColor="#5c3d22" /><stop offset="100%" stopColor="#3c2715" />
         </linearGradient>
         <linearGradient id={`${id}-glove`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4a5158" /><stop offset="100%" stopColor="#252b30" />
+          <stop offset="0%" stopColor="#525b62" /><stop offset="100%" stopColor="#242a2f" />
         </linearGradient>
       </defs>
 
       {/* stock */}
-      <path d="M-4 -9 L30 -7 L74 -1 L79 3 L79 13 L72 16 L44 13 L28 21 L15 21 L6 12 L-4 11 Z" fill={`url(#${id}-wood)`} />
-      <path d="M4 -7 L60 0 L60 3 L4 -3 Z" fill="#a97a45" opacity=".45" />
+      <path d="M-8 -10 L26 -8 L70 -2 L80 3 L80 13 L70 17 L44 14 L28 22 L14 22 L4 13 L-8 12 Z" fill={`url(#${id}-wood)`} />
+      <path d="M2 -6 L64 1 L64 4 L2 -2 Z" fill="#a3773f" opacity=".35" />
+      <path d="M18 14 L40 12 L28 20 L18 20 Z" fill="#241708" opacity=".55" />
 
-      {/* barrel + gas tube */}
-      <rect x="-136" y="-3.4" width="42" height="6.8" fill={`url(#${id}-metal)`} />
-      <rect x="-101" y="-10" width="48" height="8" rx="2" fill={`url(#${id}-metal)`} />
-      <path d="M-99 2 L-57 2 L-53 6 L-53 12 L-57 16 L-97 16 L-101 12 L-101 6 Z" fill={`url(#${id}-wood)`} />
-      <path d="M-97 5 L-58 5 L-58 8 L-97 8 Z" fill="#a97a45" opacity=".4" />
+      {/* barrel, gas tube, handguard */}
+      <rect x="-138" y="-3.6" width="42" height="7.2" fill={`url(#${id}-metal)`} />
+      <rect x="-108" y="-11" width="50" height="8.4" rx="2.5" fill={`url(#${id}-metal)`} />
+      <path d="M-107 1.5 L-59 1.5 L-54 6 L-54 11.5 L-59 16 L-105 16 L-110 11.5 L-110 6 Z" fill={`url(#${id}-wood)`} />
+      <path d="M-104 4.5 L-60 4.5 L-60 7.5 L-104 7.5 Z" fill="#a3773f" opacity=".3" />
 
       {/* muzzle brake */}
-      <path d="M-152 -6 L-136 -6 L-136 6 L-152 6 Z" fill="#333b40" />
-      <g fill="#12171a"><rect x="-149" y="-4" width="3" height="3" /><rect x="-143" y="-4" width="3" height="3" /></g>
+      <path d="M-154 -6.5 L-138 -6.5 L-138 6.5 L-154 6.5 Z" fill="#39434a" />
+      <g fill="#101518"><rect x="-151" y="-4" width="3.5" height="3.5" /><rect x="-145" y="-4" width="3.5" height="3.5" /></g>
 
-      {/* gas block + front sight */}
-      <path d="M-128 -4 L-118 -4 L-118 -14 L-124 -14 L-124 -10 L-128 -10 Z" fill="#39434a" />
-      <rect x="-124" y="-19" width="4" height="6" fill="#39434a" />
+      {/* gas block and front sight */}
+      <path d="M-120 -4 L-110 -4 L-110 -13 L-120 -13 Z" fill="#39434a" />
+      <path d="M-132 -3.6 L-123 -3.6 L-123 -15 L-127 -15 L-127 -11 L-132 -11 Z" fill="#39434a" />
+      <rect x="-128" y="-20" width="4" height="6" fill="#39434a" />
 
       {/* receiver */}
-      <path d="M-55 -9 L-4 -9 L-4 12 L-16 12 L-22 8 L-55 8 Z" fill={`url(#${id}-metal)`} />
-      <rect x="-46" y="-12" width="38" height="4" rx="1.5" fill="#3d474e" />
-      <rect x="-52" y="-16" width="12" height="5" rx="1.5" fill="#39434a" />
-      <circle cx="-33" cy="-1" r="3" fill="#151a1d" />
-      <path d="M-26 -3 L-14 -3 L-14 2 L-26 2 Z" fill="#4d585f" opacity=".7" />
+      <path d="M-57 -10 L-6 -10 L-6 13 L-18 13 L-24 9 L-57 9 Z" fill={`url(#${id}-metal)`} />
+      <rect x="-48" y="-13.5" width="40" height="4.5" rx="1.5" fill="#414c53" />
+      <rect x="-55" y="-18" width="14" height="5.5" rx="1.5" fill="#3a444b" />
+      <circle cx="-34" cy="-1" r="3.2" fill="#12171a" />
+      <path d="M-28 -4 L-14 -4 L-14 2 L-28 2 Z" fill="#586570" opacity=".55" />
 
-      {/* magazine */}
-      <path d="M-46 8 C-50 26, -58 36, -70 46 L-82 41 C-70 32, -62 22, -60 8 Z" fill={`url(#${id}-metal)`} />
-      <path d="M-49 12 C-53 27, -60 35, -70 43" fill="none" stroke="#59646b" strokeWidth="2" opacity=".55" />
+      {/* banana magazine */}
+      <path d="M-30 9 C-35 25, -45 38, -59 50 L-81 44 C-65 32, -55 22, -53 9 Z" fill={`url(#${id}-metal)`} />
+      <path d="M-49 13 C-53 27, -62 38, -75 48" fill="none" stroke="#6d7a83" strokeWidth="2.4" opacity=".5" />
+      <path d="M-59 50 L-81 44 L-78 39 L-56 45 Z" fill="#12171a" />
 
-      {/* trigger guard + grip */}
-      <path d="M-20 12 L-6 12 L-6 20 L-18 20 Z" fill="#2a3135" />
-      <path d="M-9 10 L6 10 L14 40 C15 47, 3 50, -1 43 L-8 20 Z" fill={`url(#${id}-metal)`} />
+      {/* trigger guard and pistol grip */}
+      <path d="M-22 13 L-8 13 L-8 21 L-20 21 Z" fill="#252c31" />
+      <path d="M-12 11 L6 11 L17 42 C19 50, 5 54, 0 46 L-11 21 Z" fill={`url(#${id}-metal)`} />
 
       {/* hands */}
-      <g fill={`url(#${id}-glove)`} stroke="#171c20" strokeWidth="1.6" strokeLinejoin="round">
-        <path d="M-6 14 C6 12, 18 20, 20 32 C22 44, 12 52, 1 49 C-8 46, -12 36, -12 26 Z" />
-        <path d="M-92 -2 C-80 -6, -66 -2, -62 8 C-58 19, -66 28, -78 27 C-90 26, -98 18, -97 8 Z" />
+      <g stroke="#12171b" strokeWidth="1.8" strokeLinejoin="round">
+        <path d="M-14 12 C-3 7, 12 12, 17 24 C23 38, 15 51, 2 50 C-9 49, -16 41, -16 29 Z" fill={`url(#${id}-glove)`} />
+        <path d="M-101 -8 C-89 -14, -73 -9, -69 3 C-65 16, -74 27, -86 26 C-98 25, -105 16, -104 5 Z" fill={`url(#${id}-glove)`} />
       </g>
-      <g stroke="#161b1f" strokeWidth="1.3" opacity=".8" fill="none">
-        <path d="M-2 18 C6 18, 12 24, 13 31" /><path d="M-4 26 C4 26, 10 31, 11 38" />
-        <path d="M-88 2 C-79 -1, -70 2, -67 9" /><path d="M-89 11 C-80 8, -72 11, -69 17" />
+      <g stroke="#141a1e" strokeWidth="1.5" opacity=".75" fill="none" strokeLinecap="round">
+        <path d="M-6 15 C4 14, 12 20, 14 29" /><path d="M-9 24 C1 23, 9 28, 11 37" /><path d="M-11 33 C-2 32, 5 36, 7 44" />
+        <path d="M-94 -5 C-85 -9, -75 -5, -72 4" /><path d="M-97 4 C-88 0, -79 4, -76 13" /><path d="M-98 13 C-90 10, -81 13, -79 21" />
       </g>
+      <path d="M-14 12 C-6 6, 4 6, 9 12" fill="none" stroke="#12171b" strokeWidth="1.8" opacity=".6" />
     </g>
   );
 }
-
 
 function ViewmodelScene({ id }: { id: string }) {
   return (
@@ -368,9 +384,7 @@ function ViewmodelScene({ id }: { id: string }) {
         <rect x="86" y="30" width="148" height="4" /><rect x="86" y="76" width="46" height="4" /><rect x="196" y="96" width="38" height="4" />
       </g>
       {/* distant player in the doorway */}
-      <g fill="#4d4331" opacity=".8" transform="translate(164 92)">
-        <circle cx="0" cy="0" r="7" /><path d="M-8 8 h16 l4 26 h-24Z" /><path d="M5 34 h7 l1 18h-7Z" /><path d="M-12 34 h7 l-1 18h-7Z" />
-      </g>
+      <g fill="#4a4030"><Silhouette x={163} y={88} opacity={0.85} /></g>
 
       {/* ceiling + side walls in perspective */}
       <path d="M0 0 H320 L234 28 L86 28 Z" fill="#3a3021" />
@@ -404,16 +418,16 @@ export function ViewmodelPreview({ state }: { state: ConfigState }) {
 
   // The grip sits bottom right at the stock defaults; the offsets move it from
   // there. A lower FOV pulls the weapon closer, so it grows and rises a little.
-  const zoom = (1 + (68 - fov) * 0.017) * (1 + y * 0.05);
-  const gripX = 244 + (x - 2.5) * 11;
-  const gripY = 128 - (z + 1.5) * 11 - (68 - fov) * 0.7;
+  const zoom = 0.62 * (1 + (68 - fov) * 0.019) * (1 + y * 0.05);
+  const gripX = 254 + (x - 2.5) * 10;
+  const gripY = 148 - (z + 1.5) * 10 - (68 - fov) * 0.6;
   // Left handed mirrors the whole weapon across the middle of the frame.
   const mirror = left ? "translate(320 0) scale(-1 1) " : "";
   const weapon = `${mirror}translate(${gripX} ${gripY}) rotate(24) scale(${zoom})`;
 
   return (
     <div className="viewmodel-stage">
-      <svg className="scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label={t("Viewmodel-Vorschau")}>
+      <svg className="preview-scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label={t("Viewmodel-Vorschau")}>
         <ViewmodelScene id={id} />
 
         {/* the crosshair sells the first person framing */}

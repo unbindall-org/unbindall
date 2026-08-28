@@ -74,14 +74,16 @@ describe("normalizeWorkspace", () => {
 });
 
 describe("tabUsesExplorer", () => {
-  it("keeps the file panel for the configurator and the workspace root", () => {
+  it("keeps the file panel for the configurator, trash, and the workspace root", () => {
     expect(tabUsesExplorer({ kind: "config", configId: "a" })).toBe(true);
+    expect(tabUsesExplorer({ kind: "new-config" })).toBe(true);
     expect(tabUsesExplorer({ kind: "start" })).toBe(true);
+    expect(tabUsesExplorer({ kind: "trash" })).toBe(true);
     expect(tabUsesExplorer(null)).toBe(true);
   });
 
   it("drops it on standalone pages", () => {
-    for (const kind of ["community", "community-post", "commands", "trash", "settings"] as const) {
+    for (const kind of ["community", "community-post", "commands", "settings"] as const) {
       expect(tabUsesExplorer({ kind }), kind).toBe(false);
     }
   });

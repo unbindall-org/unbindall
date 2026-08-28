@@ -1,11 +1,9 @@
 import type { WorkspaceTab, WorkspaceTabDescriptor } from "./workspace";
 
-/**
- * The addressable areas of the workspace. Config tabs stay on "/" for now —
- * a browser-only file has no id anyone else could open.
- */
+/** The addressable, reload-safe areas of the workspace. */
 const routes = {
   "/": { kind: "start" },
+  "/configs/new": { kind: "new-config" },
   "/community": { kind: "community" },
   "/community/new": { kind: "community-post" },
   "/papierkorb": { kind: "trash" },
@@ -23,10 +21,21 @@ const pathByKind = new Map<WorkspaceTabDescriptor["kind"], string>(
 
 export function pathForTab(tab: WorkspaceTab | WorkspaceTabDescriptor | null) {
   if (!tab) return "/";
+  if (tab.kind === "config") return `/configs/${encodeURIComponent(tab.configId)}`;
   return pathByKind.get(tab.kind) ?? "/";
 }
 
 export function tabForPath(path: string): WorkspaceTabDescriptor | null {
   const normalized = path.replace(/\/+$/, "") || "/";
-  return routes[normalized as WorkspaceRoute] ?? null;
+  const staticRoute = routes[normalized as WorkspaceRoute];
+  if (staticRoute) return staticRoute;
+  const configMatch = normalized.match(/^\/configs\/([^/]+)$/);
+  if (configMatch) {
+    try {
+      return { kind: "config", configId: decodeURIComponent(configMatch[1]) };
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
