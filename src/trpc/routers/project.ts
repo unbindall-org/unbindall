@@ -3,6 +3,7 @@ import { and, asc, count, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { configs, projects } from "@/db/schema";
+import { isUniqueViolation } from "@/server/db-errors";
 import { accountRateLimit, requestRateLimit } from "@/server/rate-limit";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { enforceTRPCRateLimits } from "@/trpc/rate-limit";
@@ -38,7 +39,7 @@ async function loadOwnedProject(userId: string, id: string) {
 }
 
 function mapDatabaseError(error: unknown): never {
-  if (error && typeof error === "object" && "code" in error && error.code === "23505") {
+  if (isUniqueViolation(error)) {
     throw new TRPCError({ code: "CONFLICT", message: "Ein Projekt mit diesem Namen existiert bereits." });
   }
   throw error;

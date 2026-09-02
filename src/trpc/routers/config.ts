@@ -14,6 +14,7 @@ import {
   type JsonPatch,
   type JsonValue,
 } from "@/features/generator/domain/versioning";
+import { isUniqueViolation } from "@/server/db-errors";
 import { accountRateLimit, requestRateLimit } from "@/server/rate-limit";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { enforceTRPCRateLimits } from "@/trpc/rate-limit";
@@ -83,17 +84,6 @@ function mapDatabaseError(error: unknown): never {
     throw new TRPCError({ code: "CONFLICT", message: "Eine aktive Config mit diesem Namen existiert bereits." });
   }
   throw error;
-}
-
-function isUniqueViolation(error: unknown) {
-  let current = error;
-  const visited = new Set<unknown>();
-  while (current && typeof current === "object" && !visited.has(current)) {
-    visited.add(current);
-    if ("code" in current && current.code === "23505") return true;
-    current = "cause" in current ? current.cause : undefined;
-  }
-  return false;
 }
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

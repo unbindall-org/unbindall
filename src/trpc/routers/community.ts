@@ -52,6 +52,7 @@ import { localizeCatalog } from "@/features/generator/catalog/snapshot";
 import { getPublishedCommandCatalog } from "@/features/generator/catalog/server/catalog-repository";
 import { hasRole } from "@/features/auth/domain/roles";
 import { CONFIG_TYPES } from "@/features/generator/domain/types";
+import { isUniqueViolation } from "@/server/db-errors";
 import { accountRateLimit, requestRateLimit } from "@/server/rate-limit";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "@/trpc/init";
 import { enforceTRPCRateLimits } from "@/trpc/rate-limit";
@@ -439,7 +440,7 @@ export const communityRouter = createTRPCRouter({
           .returning({ handle: users.handle, displayName: users.displayName });
         return { handle: updated.handle, displayName: updated.displayName };
       } catch (error) {
-        if (error && typeof error === "object" && "code" in error && error.code === "23505") {
+        if (isUniqueViolation(error)) {
           throw new TRPCError({ code: "CONFLICT", message: "Dieser Handle ist bereits vergeben." });
         }
         throw error;
@@ -848,7 +849,7 @@ export const communityRouter = createTRPCRouter({
           status: "open",
         });
       } catch (error) {
-        if (error && typeof error === "object" && "code" in error && error.code === "23505") {
+        if (isUniqueViolation(error)) {
           // A second report on the same thing is noise in the queue, not a
           // stronger signal. Report it back as success.
           return { reported: true, duplicate: true };
