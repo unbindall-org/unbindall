@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenCheck, Languages, ShieldCheck, Trash2, User } from "lucide-react";
+import { AtSign, BookOpenCheck, Languages, Library, ShieldCheck, Trash2, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -14,6 +14,9 @@ export function SettingsPage({
   onOpenAuth,
   onOpenTrash,
   onOpenCommandRegister,
+  communityHandle,
+  onOpenCommunityProfile,
+  onOpenMyPosts,
 }: {
   signedIn: boolean;
   showAllCommands: boolean;
@@ -22,6 +25,9 @@ export function SettingsPage({
   onOpenAuth(): void;
   onOpenTrash(): void;
   onOpenCommandRegister(): void;
+  communityHandle: string | null;
+  onOpenCommunityProfile(): void;
+  onOpenMyPosts(): void;
 }) {
   const { t } = useTranslation();
 
@@ -63,6 +69,30 @@ export function SettingsPage({
             </div>
           )}
         </section>
+
+        {signedIn && (
+          <section className="settings-card">
+            <div className="settings-row">
+              <span className="settings-row-icon"><AtSign size={16} /></span>
+              <div>
+                <strong>{t("Öffentliches Profil")}</strong>
+                <p>
+                  {communityHandle
+                    ? t("communityHandleSet", { handle: communityHandle })
+                    : t("Lege einen Handle fest, um Configs zu teilen und mitzureden.")}
+                </p>
+              </div>
+              <Button variant="outline" className="ghost-button" onClick={onOpenCommunityProfile}>
+                {communityHandle ? t("Bearbeiten") : t("Handle wählen")}
+              </Button>
+            </div>
+            <div className="settings-row">
+              <span className="settings-row-icon"><Library size={16} /></span>
+              <div><strong>{t("Meine Beiträge")}</strong><p>{t("Geteilte Configs verwalten und zurückziehen.")}</p></div>
+              <Button variant="outline" className="ghost-button" onClick={onOpenMyPosts}>{t("Öffnen")}</Button>
+            </div>
+          </section>
+        )}
 
         <section className="settings-card">
           <div className="settings-row">

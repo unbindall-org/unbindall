@@ -57,6 +57,13 @@
       "when": 1787932742597,
       "tag": "0007_bouncy_lilith",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788349153694,
+      "tag": "0008_community",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import {
   Compass,
   FileCode2,
   House,
+  Library,
   LoaderCircle,
   PanelLeft,
   PenSquare,
@@ -16,6 +17,7 @@ import {
   ShieldCheck,
   ShieldUser,
   Trash2,
+  UserRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -33,13 +35,14 @@ export type TabDescriptor = {
   dirty: boolean;
 };
 
-type StaticKind = Exclude<WorkspaceTab["kind"], "config">;
+type StaticKind = Exclude<WorkspaceTab["kind"], "config" | "community-detail" | "profile">;
 
 const staticTabs: Record<StaticKind, { label: string; Icon: LucideIcon }> = {
   start: { label: "Start", Icon: House },
   "new-config": { label: "Neue Config", Icon: PlusSquare },
   community: { label: "Entdecken", Icon: Compass },
   "community-post": { label: "Neuer Post", Icon: PenSquare },
+  "community-mine": { label: "Meine Beiträge", Icon: Library },
   trash: { label: "Papierkorb", Icon: Trash2 },
   commands: { label: "Command-Register", Icon: BookOpenCheck },
   settings: { label: "Einstellungen", Icon: Settings },
@@ -49,6 +52,8 @@ const staticTabs: Record<StaticKind, { label: string; Icon: LucideIcon }> = {
 
 export function describeTabs(tabs: WorkspaceTab[], files: Map<string, WorkspaceFile>, dirtyConfigId: string | null) {
   return tabs.map((tab): TabDescriptor => {
+    if (tab.kind === "community-detail") return { tab, label: tab.slug.replace(/-[a-z0-9]{6}$/, ""), Icon: Compass, dirty: false };
+    if (tab.kind === "profile") return { tab, label: `@${tab.handle}`, Icon: UserRound, dirty: false };
     if (tab.kind !== "config") return { tab, ...staticTabs[tab.kind], dirty: false };
     const file = files.get(tab.configId);
     return {

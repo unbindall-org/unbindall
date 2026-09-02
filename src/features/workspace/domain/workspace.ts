@@ -57,6 +57,9 @@ export type WorkspaceTabDescriptor =
   | { kind: "config"; configId: string }
   | { kind: "community" }
   | { kind: "community-post" }
+  | { kind: "community-detail"; slug: string }
+  | { kind: "community-mine" }
+  | { kind: "profile"; handle: string }
   | { kind: "trash" }
   | { kind: "commands" }
   | { kind: "settings" }
@@ -66,7 +69,10 @@ export type WorkspaceTabDescriptor =
 export type WorkspaceTab = WorkspaceTabDescriptor & { id: string };
 
 export function tabId(descriptor: WorkspaceTabDescriptor) {
-  return descriptor.kind === "config" ? `config:${descriptor.configId}` : descriptor.kind;
+  if (descriptor.kind === "config") return `config:${descriptor.configId}`;
+  if (descriptor.kind === "community-detail") return `community-detail:${descriptor.slug}`;
+  if (descriptor.kind === "profile") return `profile:${descriptor.handle}`;
+  return descriptor.kind;
 }
 
 export function toTab(descriptor: WorkspaceTabDescriptor): WorkspaceTab {
@@ -147,7 +153,18 @@ function normalizeTabs(value: unknown): WorkspaceTabDescriptor[] {
       const configId = (item as { configId?: unknown }).configId;
       return typeof configId === "string" ? [{ kind, configId }] : [];
     }
-    return ["start", "new-config", "community", "community-post", "trash", "commands", "settings", "moderation", "admin"].includes(kind as string)
+    if (kind === "community-detail") {
+      const slug = (item as { slug?: unknown }).slug;
+      return typeof slug === "string" ? [{ kind, slug }] : [];
+    }
+    if (kind === "profile") {
+      const handle = (item as { handle?: unknown }).handle;
+      return typeof handle === "string" ? [{ kind, handle }] : [];
+    }
+    return [
+      "start", "new-config", "community", "community-post", "community-mine",
+      "trash", "commands", "settings", "moderation", "admin",
+    ].includes(kind as string)
       ? [{ kind } as WorkspaceTabDescriptor]
       : [];
   });

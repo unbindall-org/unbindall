@@ -31,6 +31,12 @@ export async function WorkspacePage({
     ? await caller.config.get({ id: requestedConfigId })
     : null;
 
+  // A shared post link is the one deep link strangers actually receive, so it
+  // renders its content on the server instead of a loading state.
+  const initialPost = initialTab?.kind === "community-detail"
+    ? await caller.community.bySlug({ slug: initialTab.slug }).catch(() => null)
+    : null;
+
   return (
     <AppShell
       user={session?.user ?? null}
@@ -38,6 +44,7 @@ export async function WorkspacePage({
       initialConfigs={initialConfigs}
       initialProjects={initialProjects}
       initialConfig={initialConfig}
+      initialPost={initialPost}
       initialTab={initialTab}
       authProviders={{
         discord: Boolean(process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET),

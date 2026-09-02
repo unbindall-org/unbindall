@@ -6,6 +6,7 @@ const routes = {
   "/configs/new": { kind: "new-config" },
   "/community": { kind: "community" },
   "/community/new": { kind: "community-post" },
+  "/community/meine": { kind: "community-mine" },
   "/papierkorb": { kind: "trash" },
   "/register": { kind: "commands" },
   "/einstellungen": { kind: "settings" },
@@ -22,6 +23,8 @@ const pathByKind = new Map<WorkspaceTabDescriptor["kind"], string>(
 export function pathForTab(tab: WorkspaceTab | WorkspaceTabDescriptor | null) {
   if (!tab) return "/";
   if (tab.kind === "config") return `/configs/${encodeURIComponent(tab.configId)}`;
+  if (tab.kind === "community-detail") return `/community/${encodeURIComponent(tab.slug)}`;
+  if (tab.kind === "profile") return `/u/${encodeURIComponent(tab.handle)}`;
   return pathByKind.get(tab.kind) ?? "/";
 }
 
@@ -33,6 +36,22 @@ export function tabForPath(path: string): WorkspaceTabDescriptor | null {
   if (configMatch) {
     try {
       return { kind: "config", configId: decodeURIComponent(configMatch[1]) };
+    } catch {
+      return null;
+    }
+  }
+  const postMatch = normalized.match(/^\/community\/([^/]+)$/);
+  if (postMatch) {
+    try {
+      return { kind: "community-detail", slug: decodeURIComponent(postMatch[1]) };
+    } catch {
+      return null;
+    }
+  }
+  const profileMatch = normalized.match(/^\/u\/([^/]+)$/);
+  if (profileMatch) {
+    try {
+      return { kind: "profile", handle: decodeURIComponent(profileMatch[1]) };
     } catch {
       return null;
     }

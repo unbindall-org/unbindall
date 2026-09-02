@@ -47,7 +47,13 @@ import { ConfigOutputDialog } from "@/features/generator/components/config-outpu
 import { CommandRegisterPage } from "@/features/generator/components/command-register-page";
 import { GeneratorDialogs } from "@/features/generator/components/generator-dialogs";
 import { CommunityFeed } from "@/features/community/components/community-feed";
+import { CommunityMyPosts } from "@/features/community/components/community-my-posts";
 import { CommunityNewPost } from "@/features/community/components/community-new-post";
+import { CommunityPostDetail, type PostDetailData } from "@/features/community/components/community-post-detail";
+import { CommunityProfile } from "@/features/community/components/community-profile";
+import { AdoptDialog, type AdoptFullRequest } from "@/features/community/components/adopt-dialog";
+import { HandleDialog } from "@/features/community/components/handle-dialog";
+import { ReportDialog, type ReportTarget } from "@/features/community/components/report-dialog";
 import { hasRole } from "@/features/auth/domain/roles";
 import { AdminPage } from "@/features/platform/components/admin-page";
 import { ModerationPage } from "@/features/platform/components/moderation-page";
@@ -102,6 +108,7 @@ export type ShellProps = {
   initialConfigs: SavedConfig[];
   initialProjects: SavedProject[];
   initialConfig: LoadedConfig | null;
+  initialPost?: PostDetailData | null;
   initialTab?: WorkspaceTabDescriptor;
 };
 
@@ -129,6 +136,7 @@ function AppShellContent({
   initialConfigs,
   initialProjects,
   initialConfig,
+  initialPost,
   initialTab,
 }: ShellProps) {
   const { t, i18n } = useTranslation();
@@ -207,6 +215,16 @@ function AppShellContent({
   const [permanentDeleteCandidate, setPermanentDeleteCandidate] = useState<TrashedConfig | null>(null);
   const [checkpointLabel, setCheckpointLabel] = useState("");
   const [copied, setCopied] = useState(false);
+  const [adoptTarget, setAdoptTarget] = useState<PostDetailData | null>(null);
+  const [adoptPending, setAdoptPending] = useState(false);
+  const [handleDialogOpen, setHandleDialogOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+
+  const profileQuery = useQuery(trpc.community.myProfile.queryOptions(undefined, {
+    enabled: signedIn,
+    retry: false,
+  }));
+  const recordAdoption = useMutation(trpc.community.recordAdoption.mutationOptions());
 
   const trashTabOpen = tabs.some((tab) => tab.kind === "trash");
   const trashQuery = useQuery(trpc.config.trash.queryOptions(undefined, {
@@ -922,6 +940,115 @@ function AppShellContent({
     toast.success(t("Standardwerte wiederhergestellt."));
   }
 
+  /* ------------------------------------------------------------- community */
+
+  function openPost(slug: string) {
+    navigateToTab({ kind: "community-detail", slug });
+  }
+
+  function openProfile(handle: string) {
+    navigateToTab({ kind: "profile", handle });
+  }
+
+  /**
+   * A publish needs the full document, which the sidebar list does not carry.
+   * Local configs already hold it; cloud configs are fetched on demand.
+   */
+  async function loadPublishableFile(fileId: string) {
+    const local = workspaceStore.getState().configs.find((config) => config.id === fileId);
+    if (local) {
+      return {
+        name: local.name,
+        configType: local.configType,
+        document: local.document,
+        rawConfig: serializeConfig(local.document, editorLocale, localizedCommands),
+      };
+    }
+    const loaded = await queryClient.fetchQuery(trpc.config.get.queryOptions({ id: fileId }));
+    const document = normalizeDocument(loaded.values, localizedCommands);
+    return {
+      name: loaded.name,
+      configType: document.configType,
+      document,
+      rawConfig: loaded.rawConfig || serializeConfig(document, editorLocale, localizedCommands),
+    };
+  }
+
+  function countAdoption(post: PostDetailData["post"]) {
+    if (!signedIn) return;
+    void recordAdoption.mutateAsync({ id: post.id, version: post.currentVersion }).catch(() => undefined);
+  }
+
+  /**
+   * Adopting copies content into the workspace. It never links back to the
+   * post, so the author can keep editing without changing what anyone adopted.
+   */
+  async function adoptFull(request: AdoptFullRequest) {
+    if (!adoptTarget) return;
+    setAdoptPending(true);
+    try {
+      let projectId = request.projectId;
+      if (request.asProject) {
+        const name = adoptTarget.post.title.slice(0, 60);
+        projectId = signedIn
+          ? await resolveCloudProject(name)
+          : `${LOCAL_PROJECT_PREFIX}${workspaceStore.getState().addProject(name).id}`;
+      }
+
+      let firstConfigId: string | null = null;
+      for (const file of request.files) {
+        if (!signedIn || projectId.startsWith(LOCAL_PROJECT_PREFIX)) {
+          const localProjectId = resolveLocalProjectId(projectId);
+          const record = workspaceStore.getState()
+            .addLocalConfig(localProjectId, file.name, file.configType, file.document);
+          firstConfigId ??= record.id;
+          continue;
+        }
+        const saved = await createConfigMutation.mutateAsync({
+          name: file.name,
+          nameConflict: "rename",
+          configType: file.configType,
+          projectId: projectId === CLOUD_DEFAULT_PROJECT_ID ? undefined : projectId,
+          values: file.document,
+          rawConfig: serializeConfig(file.document, editorLocale, localizedCommands),
+          mutationId: crypto.randomUUID(),
+        });
+        updateCachedConfig(saved);
+        firstConfigId ??= saved.id;
+      }
+
+      countAdoption(adoptTarget.post);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: trpc.project.list.queryKey() }),
+        queryClient.invalidateQueries({ queryKey: trpc.config.list.queryKey() }),
+      ]);
+      setAdoptTarget(null);
+      toast.success(t("adoptedFiles", { count: request.files.length }));
+      if (firstConfigId) navigateToTab({ kind: "config", configId: firstConfigId });
+    } catch (error) {
+      toast.error(error instanceof Error ? t(error.message) : t("Übernahme fehlgeschlagen."));
+    } finally {
+      setAdoptPending(false);
+    }
+  }
+
+  function adoptParts(document: GeneratorDocument) {
+    if (!adoptTarget) return;
+    replaceDocument(document);
+    countAdoption(adoptTarget.post);
+    setAdoptTarget(null);
+    toast.success(t("Teile übernommen. Prüfe die Änderungen, bevor du speicherst."));
+  }
+
+  function downloadPublishedFile(file: { name: string; rawConfig: string }) {
+    const blob = new Blob([file.rawConfig], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = file.name.toLowerCase().endsWith(".cfg") ? file.name : `${file.name}.cfg`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   /* ------------------------------------------------------------- rendering */
 
   const tabDescriptors = useMemo(
@@ -947,9 +1074,71 @@ function AppShellContent({
 
     switch (activeTab.kind) {
       case "community":
-        return <CommunityFeed onOpenNewPost={() => navigateToTab({ kind: "community-post" })} />;
+        return (
+          <CommunityFeed
+            signedIn={signedIn}
+            onOpenNewPost={() => navigateToTab({ kind: "community-post" })}
+            onOpenPost={openPost}
+            onOpenProfile={openProfile}
+            onOpenAuth={() => setAuthOpen(true)}
+          />
+        );
       case "community-post":
-        return <CommunityNewPost files={files} />;
+        return (
+          <CommunityNewPost
+            files={files}
+            projects={projects}
+            signedIn={signedIn}
+            hasHandle={Boolean(profileQuery.data?.handle)}
+            handle={profileQuery.data?.handle ?? null}
+            displayName={profileQuery.data?.displayName ?? null}
+            onLoadFile={loadPublishableFile}
+            onPublished={(slug) => {
+              workspaceStore.getState().closeTab("community-post");
+              openPost(slug);
+            }}
+            onOpenAuth={() => setAuthOpen(true)}
+            onRequireHandle={() => setHandleDialogOpen(true)}
+          />
+        );
+      case "community-detail":
+        return (
+          <CommunityPostDetail
+            key={activeTab.slug}
+            slug={activeTab.slug}
+            initialData={initialPost?.post.slug === activeTab.slug ? initialPost : null}
+            signedIn={signedIn}
+            viewerId={user?.id ?? null}
+            canComment={Boolean(profileQuery.data?.handle)}
+            onBack={() => navigateToTab({ kind: "community" })}
+            onOpenProfile={openProfile}
+            onOpenAuth={() => setAuthOpen(true)}
+            onAdopt={setAdoptTarget}
+            onReport={setReportTarget}
+            onRequireHandle={() => setHandleDialogOpen(true)}
+          />
+        );
+      case "community-mine":
+        return (
+          <CommunityMyPosts
+            signedIn={signedIn}
+            onOpenPost={openPost}
+            onOpenNewPost={() => navigateToTab({ kind: "community-post" })}
+            onOpenAuth={() => setAuthOpen(true)}
+          />
+        );
+      case "profile":
+        return (
+          <CommunityProfile
+            key={activeTab.handle}
+            handle={activeTab.handle}
+            signedIn={signedIn}
+            onOpenPost={openPost}
+            onOpenProfile={openProfile}
+            onOpenAuth={() => setAuthOpen(true)}
+            onEditProfile={() => setHandleDialogOpen(true)}
+          />
+        );
       case "commands":
         return <CommandRegisterPage commands={localizedCommands} />;
       case "new-config":
@@ -984,10 +1173,13 @@ function AppShellContent({
             onOpenAuth={() => setAuthOpen(true)}
             onOpenTrash={() => navigateToTab({ kind: "trash" })}
             onOpenCommandRegister={() => navigateToTab({ kind: "commands" })}
+            communityHandle={profileQuery.data?.handle ?? null}
+            onOpenCommunityProfile={() => setHandleDialogOpen(true)}
+            onOpenMyPosts={() => navigateToTab({ kind: "community-mine" })}
           />
         );
       case "moderation":
-        return canModerate ? <ModerationPage /> : null;
+        return canModerate ? <ModerationPage onOpenPost={openPost} /> : null;
       case "admin":
         return canAdminister && user ? <AdminPage currentUserId={user.id} /> : null;
       case "config":
@@ -1193,6 +1385,34 @@ function AppShellContent({
         onDelete={(config) => void deleteConfig(config.id)}
         onSelectPermanentDelete={(config) => setPermanentDeleteCandidate(config as TrashedConfig | null)}
         onPermanentDelete={(config) => void permanentlyDeleteConfig(config as TrashedConfig)}
+      />
+
+      <AdoptDialog
+        open={Boolean(adoptTarget)}
+        post={adoptTarget?.post ?? null}
+        files={adoptTarget?.files ?? []}
+        projects={projects}
+        mergeTarget={activeConfigId && activeConfigReady
+          ? { name: configName, document: generatorDocument }
+          : null}
+        catalog={localizedCommands}
+        pending={adoptPending}
+        signedIn={signedIn}
+        onOpenChange={(open) => { if (!open) setAdoptTarget(null); }}
+        onAdoptFull={(request) => void adoptFull(request)}
+        onAdoptParts={adoptParts}
+        onDownload={downloadPublishedFile}
+      />
+
+      <ReportDialog target={reportTarget} onOpenChange={(open) => { if (!open) setReportTarget(null); }} />
+
+      <HandleDialog
+        key={handleDialogOpen ? "handle-open" : "handle-closed"}
+        open={handleDialogOpen}
+        currentHandle={profileQuery.data?.handle ?? null}
+        currentDisplayName={profileQuery.data?.displayName ?? null}
+        canChangeHandle={profileQuery.data?.canChangeHandle ?? true}
+        onOpenChange={setHandleDialogOpen}
       />
     </SidebarProvider>
   );

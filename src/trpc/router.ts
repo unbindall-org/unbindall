@@ -4,6 +4,8 @@ import { adminRouter } from "@/trpc/routers/admin";
 import { authRouter } from "@/trpc/routers/auth";
 import { configRouter } from "@/trpc/routers/config";
 import { catalogRouter } from "@/trpc/routers/catalog";
+import { communityRouter } from "@/trpc/routers/community";
+import { moderationRouter } from "@/trpc/routers/moderation";
 import { projectRouter } from "@/trpc/routers/project";
 
 export const appRouter = createTRPCRouter({
@@ -11,7 +13,9 @@ export const appRouter = createTRPCRouter({
   admin: adminRouter,
   auth: authRouter,
   catalog: catalogRouter,
+  community: communityRouter,
   config: configRouter,
+  moderation: moderationRouter,
   project: projectRouter,
 });
 

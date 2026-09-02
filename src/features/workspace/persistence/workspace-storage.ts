@@ -43,8 +43,11 @@ function adoptLegacyDraft(storage: WorkspaceStorage): StoredWorkspace {
   }
 }
 
-function stripTabId(tab: StoredWorkspace["tabs"][number] & { id?: string }) {
-  return tab.kind === "config" ? { kind: tab.kind, configId: tab.configId } : { kind: tab.kind };
+function stripTabId(tab: StoredWorkspace["tabs"][number] & { id?: string }): StoredWorkspace["tabs"][number] {
+  if (tab.kind === "config") return { kind: tab.kind, configId: tab.configId };
+  if (tab.kind === "community-detail") return { kind: tab.kind, slug: tab.slug };
+  if (tab.kind === "profile") return { kind: tab.kind, handle: tab.handle };
+  return { kind: tab.kind };
 }
 
 export function readWorkspace(storage: WorkspaceStorage): StoredWorkspace {

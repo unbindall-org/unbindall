@@ -1,29 +1,57 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownToLine, Heart, MessageSquare, PenSquare, Search, TrendingUp } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Compass, LoaderCircle, PenSquare, Search, TrendingUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getConfigTypeDefinition } from "@/features/generator/domain/config-types";
-import { configTypeIcons } from "@/features/shell/components/config-type-icons";
-import { communityFilters, mockPosts } from "../data/mock-posts";
+import { CONFIG_TYPES, type ConfigType } from "@/features/generator/domain/types";
+import { useTRPC } from "@/trpc/client";
+import type { FeedScope } from "../domain/post";
+import { PostCard } from "./post-card";
 
-/** Mock shell. Every number and post here is placeholder content. */
-export function CommunityFeed({ onOpenNewPost }: { onOpenNewPost(): void }) {
+const scopes: Array<{ id: FeedScope; label: string; signedInOnly?: boolean }> = [
+  { id: "new", label: "Neu" },
+  { id: "trending", label: "Beliebt" },
+  { id: "top", label: "Meist übernommen" },
+  { id: "following", label: "Folge ich", signedInOnly: true },
+];
+
+export function CommunityFeed({
+  signedIn,
+  onOpenNewPost,
+  onOpenPost,
+  onOpenProfile,
+  onOpenAuth,
+}: {
+  signedIn: boolean;
+  onOpenNewPost(): void;
+  onOpenPost(slug: string): void;
+  onOpenProfile(handle: string): void;
+  onOpenAuth(): void;
+}) {
   const { t } = useTranslation();
-  const [filter, setFilter] = useState<string>(communityFilters[0]);
+  const trpc = useTRPC();
+  const [scope, setScope] = useState<FeedScope>("new");
+  const [configType, setConfigType] = useState<ConfigType | null>(null);
   const [query, setQuery] = useState("");
+  const [submitted, setSubmitted] = useState("");
 
-  const posts = mockPosts.filter((post) =>
-    !query.trim() || `${post.title} ${post.summary} ${post.author} ${post.tags.join(" ")}`
-      .toLowerCase().includes(query.trim().toLowerCase()));
+  const feedQuery = useQuery(trpc.community.feed.queryOptions({
+    scope,
+    configType: configType ?? undefined,
+    query: submitted || undefined,
+    cursor: 0,
+  }, { retry: false }));
+
+  const posts = feedQuery.data?.items ?? [];
+  const visibleScopes = scopes.filter((item) => !item.signedInOnly || signedIn);
 
   return (
     <div className="community">
       <div className="community-inner">
-        <span className="mock-badge"><TrendingUp size={13} />{t("Vorschau — noch ohne echte Daten")}</span>
-
         <header className="community-head">
           <div>
             <p className="eyebrow">{t("COMMUNITY")}</p>
@@ -32,61 +60,89 @@ export function CommunityFeed({ onOpenNewPost }: { onOpenNewPost(): void }) {
               {t("Durchsuche geteilte Setups, übernimm einzelne Parts in dein Projekt oder teile deine eigene Config.")}
             </p>
           </div>
-          <Button className="primary-button" onClick={onOpenNewPost}><PenSquare size={16} />{t("Config teilen")}</Button>
+          <Button
+            className="primary-button"
+            onClick={() => signedIn ? onOpenNewPost() : onOpenAuth()}
+          >
+            <PenSquare size={16} />{t("Config teilen")}
+          </Button>
         </header>
 
         <div className="community-toolbar">
-          <div className="search-wrap">
+          <form
+            className="search-wrap"
+            onSubmit={(event) => { event.preventDefault(); setSubmitted(query.trim()); }}
+          >
             <Search size={17} />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Setup, Spieler oder Tag suchen …")} />
-          </div>
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("Setup, Spieler oder Tag suchen …")}
+              aria-label={t("Community durchsuchen")}
+            />
+          </form>
           <div className="community-filters">
-            {communityFilters.map((item) => (
+            {visibleScopes.map((item) => (
               <button
-                key={item}
+                key={item.id}
                 type="button"
-                className={filter === item ? "is-active" : ""}
-                onClick={() => setFilter(item)}
-              >{t(item)}</button>
+                className={scope === item.id ? "is-active" : ""}
+                onClick={() => setScope(item.id)}
+              >{t(item.label)}</button>
             ))}
           </div>
         </div>
 
-        <div className="community-grid">
-          {posts.map((post) => {
-            const definition = getConfigTypeDefinition(post.configType);
-            const Icon = configTypeIcons[post.configType];
-            return (
-              <article className="community-card" key={post.id}>
-                <header>
-                  <span className="community-avatar">{post.author.slice(0, 2).toUpperCase()}</span>
-                  <div>
-                    <strong>{post.author}</strong>
-                    <small>{post.authorRank} · {post.postedAt}</small>
-                  </div>
-                  <span className="community-type"><Icon size={13} />{t(definition.label)}</span>
-                </header>
-                <h2>{post.title}</h2>
-                <p>{post.summary}</p>
-                <ul className="community-tags">
-                  {post.tags.map((tag) => <li key={tag}>#{tag}</li>)}
-                </ul>
-                <footer>
-                  <span><Heart size={14} />{post.likes.toLocaleString("de-DE")}</span>
-                  <span><ArrowDownToLine size={14} />{post.downloads.toLocaleString("de-DE")}</span>
-                  <span><MessageSquare size={14} />{post.comments}</span>
-                  <Button variant="outline" size="sm" className="ghost-button" disabled>{t("Übernehmen")}</Button>
-                </footer>
-              </article>
-            );
-          })}
+        <div className="community-types">
+          <button
+            type="button"
+            className={configType === null ? "is-active" : ""}
+            onClick={() => setConfigType(null)}
+          >{t("Alle Typen")}</button>
+          {CONFIG_TYPES.map((type) => (
+            <button
+              key={type}
+              type="button"
+              className={configType === type ? "is-active" : ""}
+              onClick={() => setConfigType(configType === type ? null : type)}
+            >{t(getConfigTypeDefinition(type).label)}</button>
+          ))}
         </div>
 
-        {!posts.length && (
+        {feedQuery.isPending && (
+          <p className="role-loading" role="status" aria-live="polite">
+            <LoaderCircle className="spin" size={18} />{t("Beiträge werden geladen …")}
+          </p>
+        )}
+
+        {feedQuery.isError && (
+          <div className="empty-state compact" role="alert">
+            <Compass size={26} />
+            <h2>{t("Der Feed konnte nicht geladen werden.")}</h2>
+            <p>{t(feedQuery.error.message)}</p>
+            <button type="button" className="ghost-button" onClick={() => void feedQuery.refetch()}>
+              {t("Erneut versuchen")}
+            </button>
+          </div>
+        )}
+
+        {posts.length > 0 && (
+          <div className="community-grid">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} onOpen={onOpenPost} onOpenAuthor={onOpenProfile} />
+            ))}
+          </div>
+        )}
+
+        {!feedQuery.isPending && !feedQuery.isError && !posts.length && (
           <div className="empty-state">
-            <Search size={26} />
-            <h2>{t("Nichts gefunden")}</h2>
-            <p>{t("Versuche einen anderen Suchbegriff.")}</p>
+            {scope === "following" ? <TrendingUp size={26} /> : <Search size={26} />}
+            <h2>{scope === "following" ? t("Du folgst noch niemandem.") : t("Nichts gefunden")}</h2>
+            <p>
+              {scope === "following"
+                ? t("Folge Spielern, deren Setups dich interessieren — ihre neuen Beiträge landen dann hier.")
+                : t("Versuche einen anderen Suchbegriff oder teile die erste Config.")}
+            </p>
           </div>
         )}
       </div>
