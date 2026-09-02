@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { memo, useId } from "react";
 import type { ConfigState } from "../catalog/commands";
 import { useTranslation } from "react-i18next";
 
@@ -102,7 +102,7 @@ function CrosshairScene({ id }: { id: string }) {
   );
 }
 
-export function CrosshairPreview({ state, compact = false }: { state: ConfigState; compact?: boolean }) {
+function CrosshairPreviewComponent({ state, compact = false }: { state: ConfigState; compact?: boolean }) {
   const { t } = useTranslation();
   const id = useId().replace(/:/g, "");
   const scale = compact ? 2.6 : 3.2;
@@ -208,7 +208,7 @@ function RadarMap() {
   );
 }
 
-export function RadarPreview({ state }: { state: ConfigState }) {
+function RadarPreviewComponent({ state }: { state: ConfigState }) {
   const { t } = useTranslation();
   const id = useId().replace(/:/g, "");
   const zoom = 0.4 + clamp(numberValue(state, "cl_radar_scale", 0.4), 0.25, 1) * 0.78;
@@ -407,7 +407,7 @@ function ViewmodelScene({ id }: { id: string }) {
   );
 }
 
-export function ViewmodelPreview({ state }: { state: ConfigState }) {
+function ViewmodelPreviewComponent({ state }: { state: ConfigState }) {
   const { t } = useTranslation();
   const id = useId().replace(/:/g, "");
   const x = clamp(numberValue(state, "viewmodel_offset_x", 2.5), -2.5, 2.5);
@@ -444,3 +444,28 @@ export function ViewmodelPreview({ state }: { state: ConfigState }) {
     </div>
   );
 }
+
+function valuesEqual(previous: ConfigState, next: ConfigState, keys: readonly string[]) {
+  return keys.every((key) => previous[key] === next[key]);
+}
+
+const CROSSHAIR_KEYS = [
+  "cl_crosshairsize", "cl_crosshairthickness", "cl_crosshairstyle", "cl_crosshairgap_useweaponvalue",
+  "cl_crosshairgap", "cl_crosshairusealpha", "cl_crosshairalpha", "cl_crosshaircolor",
+  "cl_crosshaircolor_r", "cl_crosshaircolor_g", "cl_crosshaircolor_b", "cl_crosshair_drawoutline",
+  "cl_crosshair_outlinethickness", "cl_crosshair_t", "cl_crosshairdot",
+] as const;
+const RADAR_KEYS = [
+  "cl_radar_scale", "cl_radar_icon_scale_min", "cl_radar_rotate", "cl_radar_always_centered",
+  "cl_hud_radar_scale", "cl_radar_scale_dynamic",
+] as const;
+const VIEWMODEL_KEYS = [
+  "viewmodel_offset_x", "viewmodel_offset_y", "viewmodel_offset_z", "viewmodel_fov", "cl_prefer_lefthanded",
+] as const;
+
+export const CrosshairPreview = memo(CrosshairPreviewComponent, (previous, next) =>
+  previous.compact === next.compact && valuesEqual(previous.state, next.state, CROSSHAIR_KEYS));
+export const RadarPreview = memo(RadarPreviewComponent, (previous, next) =>
+  valuesEqual(previous.state, next.state, RADAR_KEYS));
+export const ViewmodelPreview = memo(ViewmodelPreviewComponent, (previous, next) =>
+  valuesEqual(previous.state, next.state, VIEWMODEL_KEYS));

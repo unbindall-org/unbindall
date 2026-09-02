@@ -1,6 +1,8 @@
 import { bindActions } from "../catalog/commands";
 import type { GeneratorDocument, ResolvedBinding } from "./types";
 
+type BindingDocument = Pick<GeneratorDocument, "standardBinds" | "multiBinds" | "customBinds">;
+
 const forbiddenCommands = new Set([
   "alias", "bind", "binddefaults", "disconnect", "exec", "exit", "host_writeconfig",
   "quit", "restart", "sv_cheats", "unbind", "unbindall",
@@ -28,7 +30,7 @@ export function validateCustomCommand(value: string) {
   return null;
 }
 
-export function resolveBindings(document: GeneratorDocument): ResolvedBinding[] {
+export function resolveBindings(document: BindingDocument): ResolvedBinding[] {
   const actions = new Map(bindActions.map((action) => [action.id, action]));
   const resolved: ResolvedBinding[] = [];
 
@@ -59,7 +61,7 @@ export function resolveBindings(document: GeneratorDocument): ResolvedBinding[] 
   return resolved;
 }
 
-export function findBindingConflicts(document: GeneratorDocument) {
+export function findBindingConflicts(document: BindingDocument) {
   const byKey = new Map<string, ResolvedBinding[]>();
   for (const binding of resolveBindings(document)) {
     byKey.set(binding.key, [...(byKey.get(binding.key) ?? []), binding]);

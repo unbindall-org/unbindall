@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { AlertTriangle, KeyRound, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ type ModuleProps = {
 
 const actionMap = new Map(bindActions.map((action) => [action.id, action]));
 
-export function StandardBindsModule({ document, query, onChange, enabledOnly = false }: ModuleProps) {
+function StandardBindsModuleComponent({ document, query, onChange, enabledOnly = false }: ModuleProps) {
   const { t } = useTranslation();
   const conflicts = findBindingConflicts(document);
   const normalizedQuery = query.trim().toLowerCase();
@@ -68,7 +69,7 @@ export function StandardBindsModule({ document, query, onChange, enabledOnly = f
   );
 }
 
-export function MultiBindsModule({ document, query, onChange, enabledOnly = false }: ModuleProps) {
+function MultiBindsModuleComponent({ document, query, onChange, enabledOnly = false }: ModuleProps) {
   const { t } = useTranslation();
   const normalizedQuery = query.trim().toLowerCase();
   const conflicts = findBindingConflicts(document);
@@ -137,7 +138,7 @@ export function MultiBindsModule({ document, query, onChange, enabledOnly = fals
   );
 }
 
-export function CustomBindsModule({ document, query, onChange, enabledOnly = false }: ModuleProps) {
+function CustomBindsModuleComponent({ document, query, onChange, enabledOnly = false }: ModuleProps) {
   const { t } = useTranslation();
   const normalizedQuery = query.trim().toLowerCase();
   const conflicts = findBindingConflicts(document);
@@ -196,3 +197,18 @@ function ModuleEmpty() {
   const { t } = useTranslation();
   return <div className="module-empty">{t("Keine passenden Binds in diesem Modul.")}</div>;
 }
+
+function equalBindingProps(previous: ModuleProps, next: ModuleProps) {
+  return previous.query === next.query &&
+    previous.enabledOnly === next.enabledOnly &&
+    previous.onChange === next.onChange &&
+    previous.document.standardBinds === next.document.standardBinds &&
+    previous.document.multiBinds === next.document.multiBinds &&
+    previous.document.customBinds === next.document.customBinds;
+}
+
+// Command value changes keep all bind arrays by reference. Avoid rebuilding
+// conflict maps and every bind card when an unrelated setting moves.
+export const StandardBindsModule = memo(StandardBindsModuleComponent, equalBindingProps);
+export const MultiBindsModule = memo(MultiBindsModuleComponent, equalBindingProps);
+export const CustomBindsModule = memo(CustomBindsModuleComponent, equalBindingProps);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { memo, useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import type { GeneratorModule } from "../modules/registry";
 import { generatorModuleIcons } from "./module-icons";
@@ -11,7 +11,7 @@ export type OutlineEntry = { module: GeneratorModule; count: number };
  * The document outline. The editor renders one long config document; this is
  * its table of contents, scroll-spied like the header list of a markdown page.
  */
-export function ConfigOutline({
+function ConfigOutlineComponent({
   entries,
   scrollRef,
   activeCount,
@@ -109,3 +109,5 @@ export function ConfigOutline({
     </nav>
   );
 }
+
+export const ConfigOutline = memo(ConfigOutlineComponent);

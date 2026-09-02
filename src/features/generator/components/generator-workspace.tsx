@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type RefObject } from "react";
+import { useDeferredValue, useMemo, useRef, type RefObject } from "react";
 import { BookmarkPlus, Import, Lock, RotateCcw, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import type { CommandDefinition } from "../catalog/commands";
 import { resolveBindings } from "../domain/bindings";
 import type { GeneratorDocument } from "../domain/types";
 import { getConfigTypeDefinition, isCommandAvailable } from "../domain/config-types";
-import { moduleDocumentItemCount, type GeneratorModule } from "../modules/registry";
+import type { GeneratorModule } from "../modules/registry";
 import { CustomBindsModule, MultiBindsModule, StandardBindsModule } from "./bind-modules";
 import { CommandControl } from "./command-control";
 import { ConfigOutline, type OutlineEntry } from "./config-outline";
@@ -59,55 +59,87 @@ export function GeneratorWorkspace({
 }: Props) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const normalizedQuery = query.trim().toLowerCase();
+  const deferredQuery = useDeferredValue(query);
+  const normalizedQuery = deferredQuery.trim().toLowerCase();
   const activeOnly = !showAllCommands;
   const definition = getConfigTypeDefinition(document.configType);
   const TypeIcon = configTypeIcons[document.configType];
+  const enabledSignature = commands
+    .map((command) => document.commandValues[`enabled:${command.name}`] ? "1" : "0")
+    .join("");
+  const enabledCommands = useMemo(() => new Set(commands
+    .filter((_, index) => enabledSignature[index] === "1")
+    .map((command) => command.name)), [commands, enabledSignature]);
+  const resolvedBindings = useMemo(() => resolveBindings({
+    standardBinds: document.standardBinds,
+    multiBinds: document.multiBinds,
+    customBinds: document.customBinds,
+  }), [document.customBinds, document.multiBinds, document.standardBinds]);
 
-  function commandMatches(command: CommandDefinition) {
-    return `${command.label} ${command.name} ${command.description} ${command.status.verification} ${command.status.restrictions.join(" ")} ${command.status.checkedVersion}`.toLowerCase().includes(normalizedQuery);
-  }
+  const { activeCount, commandsByModule, outlineEntries, visibleModules } = useMemo(() => {
+    const commandMatches = (command: CommandDefinition) =>
+      `${command.label} ${command.name} ${command.description} ${command.status.verification} ${command.status.restrictions.join(" ")} ${command.status.checkedVersion}`
+        .toLowerCase()
+        .includes(normalizedQuery);
+    const commandsByModule = new Map<GeneratorModule["id"], CommandDefinition[]>();
 
-  function moduleHasItemMatch(module: GeneratorModule) {
-    if (module.kind === "standard-binds") return resolveBindings(document).some((binding) =>
-      binding.source === "standard" && `${binding.label} ${t(binding.label)} ${binding.command} ${binding.key}`.toLowerCase().includes(normalizedQuery));
-    if (module.kind === "multi-binds") return document.multiBinds.some((binding) =>
-      (!activeOnly || binding.enabled) && `${binding.label} ${t(binding.label)} ${binding.keys.join(" ")}`.toLowerCase().includes(normalizedQuery));
-    if (module.kind === "custom-binds") return document.customBinds.some((binding) =>
-      (!activeOnly || binding.enabled) && `${binding.label} ${t(binding.label)} ${binding.command} ${binding.key}`.toLowerCase().includes(normalizedQuery));
-    return false;
-  }
+    for (const generatorModule of modules) {
+      if (generatorModule.kind !== "settings") continue;
+      commandsByModule.set(generatorModule.id, commands.filter((command) =>
+        command.category === generatorModule.id &&
+        isCommandAvailable(document.configType, command) &&
+        (!activeOnly || enabledCommands.has(command.name)) &&
+        (!normalizedQuery || commandMatches(command))));
+    }
 
-  function moduleMatches(module: GeneratorModule) {
-    if (activeOnly && moduleDocumentItemCount(module, document, true) === 0) return false;
-    if (!normalizedQuery) return true;
-    if (module.kind !== "settings") {
+    const itemCount = (module: GeneratorModule, enabledOnly: boolean) => {
+      if (module.kind === "settings") {
+        return commands.filter((command) => command.category === module.id &&
+          isCommandAvailable(document.configType, command) &&
+          (!enabledOnly || enabledCommands.has(command.name))).length;
+      }
+      if (module.kind === "standard-binds") {
+        return document.standardBinds.filter((binding) => !enabledOnly || binding.enabled).length;
+      }
+      if (module.kind === "multi-binds") {
+        return document.multiBinds.filter((binding) => !enabledOnly || binding.enabled).length;
+      }
+      return document.customBinds.filter((binding) => !enabledOnly || binding.enabled).length;
+    };
+
+    const moduleHasItemMatch = (module: GeneratorModule) => {
+      if (module.kind === "standard-binds") return resolvedBindings.some((binding) =>
+        binding.source === "standard" && `${binding.label} ${t(binding.label)} ${binding.command} ${binding.key}`.toLowerCase().includes(normalizedQuery));
+      if (module.kind === "multi-binds") return document.multiBinds.some((binding) =>
+        (!activeOnly || binding.enabled) && `${binding.label} ${t(binding.label)} ${binding.keys.join(" ")}`.toLowerCase().includes(normalizedQuery));
+      if (module.kind === "custom-binds") return document.customBinds.some((binding) =>
+        (!activeOnly || binding.enabled) && `${binding.label} ${t(binding.label)} ${binding.command} ${binding.key}`.toLowerCase().includes(normalizedQuery));
+      return false;
+    };
+
+    const visibleModules = modules.filter((module) => {
+      if (activeOnly && itemCount(module, true) === 0) return false;
+      if (!normalizedQuery) return true;
+      if (module.kind === "settings") return (commandsByModule.get(module.id)?.length ?? 0) > 0;
       const moduleText = activeOnly
         ? `${module.label} ${module.shortLabel} ${module.description}`.toLowerCase()
         : module.searchableText;
       return moduleText.includes(normalizedQuery) || moduleHasItemMatch(module);
-    }
-    return commands.some((command) => command.category === module.id &&
-      isCommandAvailable(document.configType, command) &&
-      (!activeOnly || Boolean(document.commandValues[`enabled:${command.name}`])) && commandMatches(command));
-  }
+    });
+    const outlineEntries: OutlineEntry[] = visibleModules.map((module) => ({
+      module,
+      count: module.kind === "settings"
+        ? (commandsByModule.get(module.id)?.length ?? 0)
+        : itemCount(module, activeOnly),
+    }));
 
-  function commandsFor(module: GeneratorModule) {
-    if (module.kind !== "settings") return [];
-    return commands.filter((command) => command.category === module.id &&
-      isCommandAvailable(document.configType, command) &&
-      (!activeOnly || Boolean(document.commandValues[`enabled:${command.name}`])) &&
-      (!normalizedQuery || commandMatches(command)));
-  }
-
-  const visibleModules = modules.filter(moduleMatches);
-  const outlineEntries: OutlineEntry[] = visibleModules.map((module) => ({
-    module,
-    count: module.kind === "settings"
-      ? commandsFor(module).length
-      : moduleDocumentItemCount(module, document, activeOnly),
-  }));
-  const activeCount = modules.filter((module) => moduleDocumentItemCount(module, document, true) > 0).length;
+    return {
+      activeCount: modules.filter((module) => itemCount(module, true) > 0).length,
+      commandsByModule,
+      outlineEntries,
+      visibleModules,
+    };
+  }, [activeOnly, commands, document, enabledCommands, modules, normalizedQuery, resolvedBindings, t]);
 
   return (
     <div className="editor">
@@ -171,10 +203,10 @@ export function GeneratorWorkspace({
             <div className="settings-flow">
               {visibleModules.map((module) => {
               const Icon = generatorModuleIcons[module.id];
-              const categoryCommands = commandsFor(module);
+              const categoryCommands = commandsByModule.get(module.id) ?? [];
               const itemCount = module.kind === "settings"
                 ? categoryCommands.length
-                : moduleDocumentItemCount(module, document, activeOnly);
+                : outlineEntries.find((entry) => entry.module.id === module.id)?.count ?? 0;
               return (
                 <section className="settings-section" key={module.id} id={`section-${module.id}`}>
                   <div className="section-heading">
@@ -188,9 +220,9 @@ export function GeneratorWorkspace({
                   {module.id === "radar" && !normalizedQuery && <div className="inline-preview"><RadarPreview state={document.commandValues} /><div className="preview-copy"><p className="eyebrow">{t("RADAR PREVIEW")}</p><h3>{t("Die ganze Runde im Blick.")}</h3><p>{t("Map-Zoom, Rotation und Icon-Größe werden direkt sichtbar.")}</p></div></div>}
 
                   {module.kind === "settings" && <div className="command-list">{categoryCommands.map((command) => <CommandControl key={command.name} command={command} state={document.commandValues} onChange={onCommandChange} />)}</div>}
-                  {module.kind === "standard-binds" && <StandardBindsModule document={document} query={query} onChange={onDocumentChange} enabledOnly={activeOnly} />}
-                  {module.kind === "multi-binds" && <MultiBindsModule document={document} query={query} onChange={onDocumentChange} enabledOnly={activeOnly} />}
-                  {module.kind === "custom-binds" && <CustomBindsModule document={document} query={query} onChange={onDocumentChange} enabledOnly={activeOnly} />}
+                  {module.kind === "standard-binds" && <StandardBindsModule document={document} query={deferredQuery} onChange={onDocumentChange} enabledOnly={activeOnly} />}
+                  {module.kind === "multi-binds" && <MultiBindsModule document={document} query={deferredQuery} onChange={onDocumentChange} enabledOnly={activeOnly} />}
+                  {module.kind === "custom-binds" && <CustomBindsModule document={document} query={deferredQuery} onChange={onDocumentChange} enabledOnly={activeOnly} />}
                 </section>
               );
             })}
