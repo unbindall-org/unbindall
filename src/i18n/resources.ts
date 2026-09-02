@@ -1209,6 +1209,15 @@ const en = {
   "target.post": "Post",
   "target.comment": "Comment",
   "target.user": "Account",
+  "Beitrag bearbeiten": "Edit post",
+  "Angaben lassen sich jederzeit korrigieren. Neuer Inhalt wird immer eine neue Version.": "Details can be corrected at any time. New content always becomes a new version.",
+  "Beitrag aktualisiert.": "Post updated.",
+  "Beitrag konnte nicht aktualisiert werden.": "The post could not be updated.",
+  "Sichtbarkeit": "Visibility",
+  "WAS HAT SICH GEÄNDERT?": "WHAT CHANGED?",
+  "z. B. Crosshair angepasst, Radar größer": "e.g. adjusted crosshair, bigger radar",
+  newVersionFrom: "Publish a new version (v{{version}}) from a workspace config",
+  versionPublished: "Version v{{version}} published.",
 } as const;
 
 export const resources = {
@@ -1285,6 +1294,8 @@ export const resources = {
     "target.post": "Beitrag",
     "target.comment": "Kommentar",
     "target.user": "Account",
+    newVersionFrom: "Neue Version (v{{version}}) aus einer Workspace-Config veröffentlichen",
+    versionPublished: "Version v{{version}} veröffentlicht.",
   } },
   en: { translation: en },
 } as const;

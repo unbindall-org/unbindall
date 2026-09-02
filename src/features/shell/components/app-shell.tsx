@@ -1153,6 +1153,8 @@ function AppShellContent({
         return (
           <CommunityMyPosts
             signedIn={signedIn}
+            files={files}
+            onLoadFile={loadPublishableFile}
             onOpenPost={openPost}
             onOpenNewPost={() => navigateToTab({ kind: "community-post" })}
             onOpenAuth={() => setAuthOpen(true)}

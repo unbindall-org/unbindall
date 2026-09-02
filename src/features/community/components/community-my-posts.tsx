@@ -1,20 +1,28 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownToLine, EyeOff, Globe, Heart, Link2, LoaderCircle, PenSquare, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowDownToLine, EyeOff, Globe, Heart, Link2, LoaderCircle, PenSquare, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/trpc/client";
+import type { WorkspaceFile } from "@/features/workspace/domain/workspace";
 import { formatRelativeTime } from "../domain/format";
+import type { PublishableFile } from "./community-new-post";
+import { PostEditDialog, type EditablePost } from "./post-edit-dialog";
 
 export function CommunityMyPosts({
   signedIn,
+  files,
+  onLoadFile,
   onOpenPost,
   onOpenNewPost,
   onOpenAuth,
 }: {
   signedIn: boolean;
+  files: WorkspaceFile[];
+  onLoadFile(fileId: string): Promise<PublishableFile>;
   onOpenPost(slug: string): void;
   onOpenNewPost(): void;
   onOpenAuth(): void;
@@ -23,6 +31,7 @@ export function CommunityMyPosts({
   const locale = i18n.resolvedLanguage ?? "de";
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<EditablePost | null>(null);
 
   const postsQuery = useQuery(trpc.community.myPosts.queryOptions(undefined, { enabled: signedIn, retry: false }));
   const unpublish = useMutation(trpc.community.unpublish.mutationOptions());
@@ -99,6 +108,23 @@ export function CommunityMyPosts({
                   variant="outline"
                   size="sm"
                   className="ghost-button"
+                  disabled={post.status === "removed"}
+                  onClick={() => setEditing({
+                    id: post.id,
+                    kind: post.kind,
+                    title: post.title,
+                    summary: post.summary,
+                    tags: post.tags,
+                    visibility: post.visibility,
+                    currentVersion: post.currentVersion,
+                  })}
+                >
+                  <Pencil size={13} />{t("Bearbeiten")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ghost-button"
                   disabled={unpublish.isPending}
                   onClick={() => void withdraw(post.id)}
                 >
@@ -117,6 +143,14 @@ export function CommunityMyPosts({
             <Button className="primary-button" onClick={onOpenNewPost}>{t("Config teilen")}</Button>
           </div>
         )}
+
+        <PostEditDialog
+          key={editing?.id ?? "none"}
+          post={editing}
+          files={files}
+          onLoadFile={onLoadFile}
+          onOpenChange={(open) => { if (!open) setEditing(null); }}
+        />
       </div>
     </div>
   );
