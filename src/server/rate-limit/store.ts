@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { captureException } from "@/observability/server";
 
 export type RateLimitStoreResult = { count: number; ttlMs: number };
 
@@ -28,7 +29,9 @@ async function connectedRedisClient() {
       url: process.env.REDIS_URL,
       socket: { connectTimeout: 3_000, reconnectStrategy: false },
     });
-    client.on("error", (error) => console.error("Redis rate-limit error", error));
+    client.on("error", (error) => {
+      void captureException("redis.rate_limit_error", error);
+    });
     globalForRateLimit.rateLimitRedisConnection = client.connect().then(() => {
       globalForRateLimit.rateLimitRedisClient = client;
       globalForRateLimit.rateLimitRedisConnection = undefined;

@@ -37,6 +37,18 @@ describe("production environment validation", () => {
     })).toThrow(/AUTH_DISCORD[\s\S]*TRUSTED_PROXY_COUNT/);
   });
 
+  it("requires a secure and complete external error-reporting configuration", () => {
+    expect(() => validateProductionEnvironment({
+      ...validProductionEnvironment,
+      ERROR_REPORTING_ENDPOINT: "http://collector.example/errors",
+    })).toThrow(/ERROR_REPORTING_ENDPOINT muss HTTPS/);
+
+    expect(() => validateProductionEnvironment({
+      ...validProductionEnvironment,
+      ERROR_REPORTING_TOKEN: "collector-token",
+    })).toThrow(/ERROR_REPORTING_TOKEN/);
+  });
+
   it("permits the development secret only outside the production runtime", () => {
     expect(authSecret({ NODE_ENV: "development" })).toBe("local-development-secret-change-me-please");
     expect(() => authSecret({ NODE_ENV: "production" })).toThrow(/AUTH_SECRET/);

@@ -1795,6 +1795,78 @@ input::placeholder { color: var(--text-4); }
 .legal-foot a { color: var(--text-4); text-decoration: none; }
 .legal-foot a:hover { color: var(--text-2); text-decoration: underline; }
 
+/* Error and not-found states ------------------------------------------------ */
+.status-screen {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 50% 20%, color-mix(in oklch, var(--brand) 10%, transparent), transparent 38%),
+    var(--surface-1);
+}
+.status-card {
+  width: min(100%, 520px);
+  padding: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+.status-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 20px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-lg);
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+.status-icon svg { width: 24px; height: 24px; }
+.status-card .eyebrow { margin-bottom: 7px; }
+.status-card h1 { margin: 0; font-size: clamp(24px, 5vw, 32px); font-weight: 650; letter-spacing: -0.025em; }
+.status-copy { margin: 12px auto 0; max-width: 46ch; color: var(--text-3); font-size: 14px; line-height: 1.65; }
+.status-reference {
+  margin: 16px 0 0;
+  color: var(--text-4);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.status-actions { margin-top: 24px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.status-primary,
+.status-secondary {
+  min-height: 38px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.status-primary { background: var(--brand); color: var(--on-brand); }
+.status-primary:hover { background: var(--brand-strong); }
+.status-secondary { border-color: var(--line-strong); background: var(--surface-3); color: var(--text); }
+.status-secondary:hover { background: var(--surface-4); }
+
+@media (max-width: 520px) {
+  .status-screen { padding: 16px; }
+  .status-card { padding: 30px 20px; }
+  .status-actions { flex-direction: column; }
+  .status-primary, .status-secondary { width: 100%; }
+}
+
 @media (max-width: 720px) {
   .legal-main { padding: 32px 18px 72px; }
   .legal-main h1 { font-size: 26px; }

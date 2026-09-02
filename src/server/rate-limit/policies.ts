@@ -10,6 +10,7 @@ export const rateLimitPolicies = {
   accountExportAccount: { limit: 5, windowMs: 60 * 60_000 },
   configMutationAccount: { limit: 120, windowMs: 60_000 },
   configMutationIp: { limit: 240, windowMs: 60_000 },
+  clientErrorIp: { limit: 30, windowMs: 60_000 },
 } as const;
 
 export type RateLimitPolicyName = keyof typeof rateLimitPolicies;

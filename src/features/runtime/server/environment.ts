@@ -84,6 +84,20 @@ export function validateProductionEnvironment(env: NodeJS.ProcessEnv = process.e
     errors.push("REDIS_URL muss eine redis://- oder rediss://-URL sein.");
   }
 
+  if (env.ERROR_REPORTING_ENDPOINT) {
+    try {
+      const reportingUrl = new URL(env.ERROR_REPORTING_ENDPOINT);
+      if (reportingUrl.protocol !== "https:") {
+        errors.push("ERROR_REPORTING_ENDPOINT muss HTTPS verwenden.");
+      }
+    } catch {
+      errors.push("ERROR_REPORTING_ENDPOINT ist keine gültige URL.");
+    }
+  }
+  if (env.ERROR_REPORTING_TOKEN && !env.ERROR_REPORTING_ENDPOINT) {
+    errors.push("ERROR_REPORTING_TOKEN darf nur zusammen mit ERROR_REPORTING_ENDPOINT gesetzt sein.");
+  }
+
   const discordIdPresent = Boolean(env.AUTH_DISCORD_ID);
   const discordSecretPresent = Boolean(env.AUTH_DISCORD_SECRET);
   if (discordIdPresent !== discordSecretPresent) {

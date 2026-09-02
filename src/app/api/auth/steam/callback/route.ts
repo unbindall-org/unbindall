@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { signIn } from "@/auth";
 import { getAuthSecret } from "@/features/auth/server/auth-secret";
 import { getSteamPlayer, provisionSteamAccount } from "@/features/auth/server/steam-account";
+import { captureException } from "@/observability/server";
 import {
   createSteamLoginToken,
   stateMatches,
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(new URL(String(redirectTo), origin));
   } catch (error) {
-    console.error("Steam sign-in failed", error);
+    await captureException("auth.steam_sign_in_failed", error, { path: request.nextUrl.pathname });
     return errorRedirect(origin);
   }
 }
