@@ -1,13 +1,14 @@
-## Änderung
+## Change
 
-<!-- Was ändert sich und warum? -->
+<!-- What changes, and why? -->
 
-## Prüfung
+## Verification
 
 - [ ] `pnpm lint`
 - [ ] `pnpm typecheck`
 - [ ] `pnpm test`
 - [ ] `pnpm build`
-- [ ] UI-Änderungen enthalten Screenshots
-- [ ] Neue Commands enthalten Quelle und Prüfdatum
-- [ ] Persistierte Formatänderungen enthalten Versionierung und Migration
+- [ ] UI changes include screenshots
+- [ ] New commands include their source and verification date
+- [ ] Persisted format changes include versioning and a migration
+- [ ] User-visible changes are recorded in `CHANGELOG.md`

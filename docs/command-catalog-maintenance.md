@@ -1,113 +1,113 @@
-# Command-Katalog pflegen und erweitern
+# Maintaining and Extending the Command Catalog
 
-Dieser Leitfaden definiert, wie Commands entdeckt, geprüft, freigegeben und nach CS2-Updates erneut bewertet werden. Ziel ist ein vollständiger, aber kuratierter Katalog für normale Competitive-Configs, Competitive-Server und lokale Practice-Configs. Ein vollständiger Engine-Dump ist eine Eingangsquelle, aber nicht der Produktumfang.
+This guide defines how commands are discovered, verified, published, and reassessed after CS2 updates. The goal is a comprehensive but curated catalog for normal competitive configurations, competitive servers, and local practice configurations. A complete engine dump is an input, not the product scope.
 
-## Grundsatz: Existenz ist noch keine Verifikation
+## Principle: existence is not verification
 
-Ein Command kann in einem Dump stehen und trotzdem im falschen Kontext wirkungslos, nur auf einer Plattform vorhanden oder durch Flags eingeschränkt sein. Deshalb werden vier Fragen getrennt beantwortet:
+A command can appear in a dump but still be ineffective in the relevant context, available on only one platform, or restricted by flags. Answer these four questions separately:
 
-1. Ist der Name in einem bestimmten Build und auf einer bestimmten Plattform vorhanden?
-2. Ist der Command im passenden Laufzeitkontext registriert?
-3. Lässt er sich mit der dokumentierten Syntax ausführen und auslesen?
-4. Erzeugt er die beschriebene Wirkung?
+1. Does the name exist in a specific build and on a specific platform?
+2. Is the command registered in the relevant runtime context?
+3. Can it be executed and read back with the documented syntax?
+4. Does it produce the described effect?
 
-Erst die letzte Stufe rechtfertigt langfristig das öffentliche Badge „Verifiziert“. Die bisherige Katalogprüfung belegt überwiegend nur die Existenz in einem Dump. Bestehende Einträge müssen daher schrittweise durch den folgenden Prozess auf die höhere Evidenzstufe gebracht werden.
+Only the final level justifies a long-term public “Verified” badge. The existing catalog baseline mostly proves presence in a dump. Existing entries should progressively move through this process to stronger evidence levels.
 
-## Evidenzstufen
+## Evidence levels
 
-| Stufe | Bedeutung | Erforderlicher Nachweis |
+| Level | Meaning | Required evidence |
 | --- | --- | --- |
-| E0 – Kandidat | In Patch Notes, einer Config, einem Forum oder einer Suche gefunden | Link oder Fundstelle; noch nicht für den Katalog freigegeben |
-| E1 – Build-bestätigt | In einem build- und plattformgebundenen ConVar-/Command-Extrakt vorhanden | Build-ID, Plattform, Quelle und möglichst Commit oder Artefakt-Hash |
-| E2 – Laufzeit-bestätigt | Im richtigen lokalen Kontext registriert | Ausgabe von `help`, `find` oder `cvarlist`; Client, Listen- oder Dedicated-Server angeben |
-| E3 – Syntax-bestätigt | Setzen und Readback funktionieren; Typ, Default, Bereich und Flags sind geprüft | reproduzierbarer Konsolentest samt Ergebnis; bei Action-Commands die Konsolenausgabe |
-| E4 – Verhaltensbestätigt | Die beschriebene Wirkung wurde im Spiel oder Serverzustand beobachtet | kurzer Testfall mit Erwartung, Ergebnis, Map/Modus und Rücksetzschritt |
+| E0 — Candidate | Found in patch notes, a configuration, a forum, or search results | Link or location; not approved for the catalog |
+| E1 — Build-confirmed | Present in a build- and platform-specific ConVar/command extract | Build ID, platform, source, and preferably a commit or artifact hash |
+| E2 — Runtime-confirmed | Registered in the correct local context | Output from `help`, `find`, or `cvarlist`; identify client, listen server, or dedicated server |
+| E3 — Syntax-confirmed | Setting and readback work; type, default, range, and flags are checked | Reproducible console test and result; console output for action commands |
+| E4 — Behavior-confirmed | The described effect was observed in game or server state | Short test with expectation, result, map/mode, and reset step |
 
-Freigaberegeln:
+Publication rules:
 
-- Neue öffentliche Commands benötigen E4. Bis dahin bleiben sie außerhalb des Katalogs oder in einem Wartungs-PR als Kandidat.
-- Änderungen an Label oder Beschreibung dürfen auf E3 beruhen, wenn sie keine Wirkungsbehauptung verändern.
-- Presets und `enabledByDefault` dürfen nur E4-Commands verwenden.
-- Server- und Practice-Commands müssen E4 im jeweiligen Kontext erreichen; ein Client-Test genügt dafür nicht.
-- `offline-only` und `requires-cheats` sind Einschränkungen, keine Evidenzstufen.
-- `deprecated` wird erst gesetzt, wenn das Fehlen oder ein Ersatz bestätigt wurde. Ein einzelner fehlender Treffer in einem Dump reicht nicht.
+- New public commands require E4. Until then, keep them outside the catalog or as candidates in a maintenance pull request.
+- Label or description changes may use E3 when they do not change a behavior claim.
+- Presets and `enabledByDefault` may contain only E4 commands.
+- Server and practice commands must reach E4 in their respective context; a client-only test is insufficient.
+- `offline-only` and `requires-cheats` are restrictions, not evidence levels.
+- Set `deprecated` only after absence or a replacement is confirmed. One missing dump result is insufficient.
 
-## Quellen und ihre Aufgabe
+## Sources and their roles
 
-Keine Quelle beantwortet allein alle vier Fragen:
+No single source answers all four questions:
 
-- [Valve-Patch-Notes](https://store.steampowered.com/news/app/730) und die [Valve Developer Community](https://developer.valvesoftware.com/wiki/Counter-Strike_2) dokumentieren beabsichtigte Änderungen, sind aber nicht vollständig.
-- [CS2OpenDev SchemaTracker](https://github.com/CS2OpenDev/CS2OpenDev-SchemaTracker) erzeugt deterministische, nach Build und Plattform getrennte `convars.json`, `commands.json` und `provenance.json` direkt aus ausgelieferten Runtime-Binaries. Das ist die bevorzugte E1-Quelle.
-- [SteamTracking/GameTracking-CS2](https://github.com/SteamTracking/GameTracking-CS2/tree/master/DumpSource2) führt aktuelle Text-Dumps und ausgelieferte Spieldateien. Es eignet sich gut für Diffs und als zweite E1-Quelle.
-- Der [Poggu-ConVar-Dump](https://cs2.poggu.me/dumped-data/convar-list/) ist gut durchsuchbar und nützlich zur Gegenprüfung. Seine [Methodendokumentation](https://cs2.poggu.me/reverse-engineering/ConVars/) erklärt, dass die Daten aus den internen ConVar-Strukturen gewonnen werden.
-- SteamDB hilft, eine öffentliche Build-ID zeitlich einzuordnen. Für die lokale Prüfung ist die Build-ID aus dem eigenen Steam-Manifest maßgeblich.
-- Community-Configs, Videos, Wikis und Suchergebnisse liefern E0-Kandidaten, aber niemals allein den Status „Verifiziert“.
+- [Valve patch notes](https://store.steampowered.com/news/app/730) and the [Valve Developer Community](https://developer.valvesoftware.com/wiki/Counter-Strike_2) document intended changes but are incomplete.
+- [CS2OpenDev SchemaTracker](https://github.com/CS2OpenDev/CS2OpenDev-SchemaTracker) generates deterministic, build- and platform-specific `convars.json`, `commands.json`, and `provenance.json` directly from shipped runtime binaries. It is the preferred E1 source.
+- [SteamTracking/GameTracking-CS2](https://github.com/SteamTracking/GameTracking-CS2/tree/master/DumpSource2) tracks current text dumps and shipped game files. It is useful for diffs and as a second E1 source.
+- The [Poggu ConVar dump](https://cs2.poggu.me/dumped-data/convar-list/) is searchable and useful for cross-checking. Its [method documentation](https://cs2.poggu.me/reverse-engineering/ConVars/) explains that data is extracted from internal ConVar structures.
+- SteamDB helps place a public build ID in time. The build ID in the local Steam manifest controls local verification.
+- Community configurations, videos, wikis, and search results provide E0 candidates but can never establish “Verified” by themselves.
 
-Bei Widersprüchen gewinnt der reproduzierbare Laufzeittest für exakt den dokumentierten Build, die Plattform und den Kontext. Der Widerspruch wird trotzdem im Prüfprotokoll festgehalten.
+When sources conflict, a reproducible runtime test for the exact documented build, platform, and context takes precedence. Record the conflict in the verification log anyway.
 
-## Mehrstufiger Wartungsprozess
+## Staged maintenance process
 
-### Stufe 1: Update erkennen und Prüfstand fixieren
+### Stage 1: detect the update and pin the baseline
 
-Bei jedem öffentlichen CS2-Update:
+For every public CS2 update:
 
-1. öffentliche und lokale Build-ID erfassen;
-2. Datum, Plattformen und verfügbare Testkontexte festlegen;
-3. die verwendeten Dumps auf einen Commit oder ein unveränderliches Artefakt pinnen;
-4. den aktuell veröffentlichten DB-Snapshot exportieren und `checkedVersion` noch nicht ändern.
+1. Record the public and local build IDs.
+2. Fix the date, platforms, and available test contexts.
+3. Pin every dump to a commit or immutable artifact.
+4. Export the currently published database snapshot without changing `checkedVersion` yet.
 
-Ein globaler Versionsstring darf erst aktualisiert werden, wenn alle geänderten Commands geprüft sind. Pro Command bleibt `checkedVersion` die genauere Aussage.
+Update a global version string only after all affected commands are checked. Per-command `checkedVersion` remains the more precise statement.
 
-### Stufe 2: Maschinellen Diff erzeugen
+### Stage 2: generate a machine diff
 
-Alten und neuen E1-Datenstand nach folgenden Änderungen vergleichen:
+Compare the old and new E1 datasets for:
 
-- hinzugefügte und entfernte Namen;
-- Wechsel zwischen ConVar und Action-Command;
-- Typ, Default, Minimum und Maximum;
-- Flags wie `cheat`, `developmentonly`, `hidden`, `replicated`, `clientdll` oder `gamedll`;
-- geänderte Hilfetexte.
+- added and removed names
+- changes between ConVar and action command
+- type, default, minimum, and maximum
+- flags such as `cheat`, `developmentonly`, `hidden`, `replicated`, `clientdll`, and `gamedll`
+- changed help text
 
-Priorität haben Commands, die bereits im Katalog, in einem Preset oder standardmäßig aktiviert sind. Neue Engine-Einträge werden nur dann zu Kandidaten, wenn sie in einen der drei Produktkontexte passen.
+Prioritize commands already in the catalog, in a preset, or enabled by default. A new engine entry becomes a candidate only when it fits one of the three product contexts.
 
-### Stufe 3: Kandidaten kuratieren
+### Stage 3: curate candidates
 
-Ein Command gehört in den Katalog, wenn er eine typische Config-Aufgabe löst, dauerhaft konfigurierbar oder sinnvoll automatisierbar ist und sich für normale Spieler verständlich erklären lässt. Nicht aufgenommen werden reine Entwicklerdiagnostik, interne UI-Aktionen, gefährliche Admin-Befehle, Duplikate ohne eigenen Nutzen sowie Commands, die nur deshalb existieren, weil sie im Dump stehen.
+A command belongs in the catalog when it solves a typical configuration task, is persistently configurable or usefully automatable, and can be explained to normal players. Exclude pure developer diagnostics, internal UI actions, dangerous admin commands, duplicates without distinct value, and commands included only because they appeared in a dump.
 
-Für jeden Kandidaten werden vor dem Test festgelegt:
+Define the following before testing each candidate:
 
-- Zielkontext: `client`, `competitive-server` oder `practice`;
-- erwarteter Typ und zulässige Werte;
-- erwartete Einschränkungen;
-- konkreter E4-Test und Rücksetzschritt.
+- target context: `client`, `competitive-server`, or `practice`
+- expected type and allowed values
+- expected restrictions
+- concrete E4 test and reset step
 
-### Stufe 4: Lokal in CS2 prüfen
+### Stage 4: verify locally in CS2
 
-Der lokale Test ist optional für die reine Kandidatensuche, aber Pflicht für E2 bis E4. Er kann auf einem normalen Client, einem lokalen Listen-Server oder einem isolierten Dedicated Server stattfinden.
+Local testing is optional for candidate discovery but mandatory for E2 through E4. It can run on a normal client, local listen server, or isolated dedicated server.
 
-Empfohlene Testmatrix:
+Recommended test matrix:
 
-| Katalogbereich | Mindestkontext | Zusätzlicher Kontext |
+| Catalog area | Minimum context | Additional context |
 | --- | --- | --- |
-| normale Config | Client auf lokaler Map | zweites unterstütztes Betriebssystem bei plattformsensitiven Commands |
-| Server-Config | lokaler Dedicated Server | Listen-Server zur Erkennung abweichender Registrierung |
-| Practice | lokale Map/Listen-Server | Dedicated Server, wenn der Command dort angeboten wird |
+| Normal configuration | Client on a local map | Second supported operating system for platform-sensitive commands |
+| Server configuration | Local dedicated server | Listen server to detect registration differences |
+| Practice | Local map/listen server | Dedicated server when the command is available there |
 
-Cheat-Tests nur in einer lokalen oder privaten Sitzung durchführen. `sv_cheats 1`, `-insecure`, RCON- oder Netconsole-Zugänge gehören nicht auf einen öffentlich erreichbaren Testserver. Passwörter und Tokens dürfen nicht in Condumps oder PRs landen.
+Run cheat-protected tests only in a local or private session. Never expose `sv_cheats 1`, `-insecure`, RCON, or netconsole access on a publicly reachable test server. Passwords and tokens must not appear in console dumps or pull requests.
 
-### Stufe 5: Katalog und Tests ändern
+### Stage 5: change the catalog and tests
 
-Nach bestandenem E4-Test:
+After a successful E4 test:
 
-1. den Eintrag im Plattform-Adminbereich zunächst als unveröffentlichten Entwurf mit deutschen und englischen Texten, Typ, Default, Bereich, Config-Kontexten und Einschränkungen ergänzen oder korrigieren;
-2. nur sinnvolle UI-Grenzen anbieten – Engine-Minimum und -Maximum sind nicht automatisch gute Reglergrenzen;
-3. Action-Commands ohne künstliches Argument modellieren;
-4. Serializer-, Import- und Statusfälle testen;
-5. Presets separat und im vorgesehenen Kontext testen;
-6. `checkedVersion` aktualisieren und den Eintrag erst nach Review veröffentlichen;
-7. für reproduzierbare Neuinstallationen die TypeScript-Seed-Quelle und eine Folgemigration mit demselben geprüften Stand aktualisieren. Die SQL-Seeddaten lassen sich mit `scripts/generate-command-catalog-seed.ts` deterministisch erzeugen.
+1. Add or correct the entry as an unpublished draft in the platform admin area, including English and German text, type, default, range, configuration contexts, and restrictions.
+2. Expose useful UI limits; engine minimum and maximum values do not automatically make good control limits.
+3. Model action commands without artificial arguments.
+4. Test serializer, import, and status cases.
+5. Test presets separately in their intended context.
+6. Update `checkedVersion` and publish only after review.
+7. For reproducible new installations, update the TypeScript seed and add a follow-up migration with the same verified state. Generate SQL seed data deterministically with `scripts/generate-command-catalog-seed.ts`.
 
-Die normalen Projektprüfungen sind:
+Run the normal project checks:
 
 ```bash
 pnpm lint
@@ -116,24 +116,24 @@ pnpm test
 pnpm build
 ```
 
-### Stufe 6: Review, Veröffentlichung und Nachbeobachtung
+### Stage 6: review, publish, and observe
 
-Der Review prüft nicht nur den Command-Namen, sondern auch Evidenz, Kontext, Einschränkungen, Beschreibung und Anti-Bloat-Kriterium. Nach Veröffentlichung werden Fehlerberichte dem betroffenen Build zugeordnet. Ein Command wird bei Unsicherheit zuerst aus Presets und Standardaktivierung entfernt; `deprecated` folgt erst nach bestätigtem Wegfall oder bestätigtem Ersatz.
+Review the command name, evidence, context, restrictions, description, and anti-bloat criterion. Associate post-publication bug reports with the affected build. When uncertain, first remove a command from presets and default activation; use `deprecated` only after confirmed removal or replacement.
 
-## Lokale CS2-Installation durchsuchen
+## Inspecting a local CS2 installation
 
-In CI- und Container-Umgebungen wie der aktuellen ist CS2 häufig nicht installiert. Dort endet die belastbare Prüfung bei E1: Kandidaten und Diffs können vorbereitet, aber keine neuen Commands als „Verifiziert“ freigegeben werden. E2 bis E4 laufen anschließend auf einem separaten Rechner mit Steam und lokalen CS2-Dateien.
+CI and container environments often do not contain CS2. Reliable verification ends at E1 there: candidates and diffs can be prepared, but no new command can be published as “Verified.” Perform E2 through E4 on a separate machine with Steam and local CS2 files.
 
-### 1. Installationswurzel und Build bestimmen
+### 1. Locate the installation and build
 
-Am zuverlässigsten ist **Steam → Bibliothek → Counter-Strike 2 → Eigenschaften → Installierte Dateien → Durchsuchen**. Der gewählte Steam-Library-Ordner enthält außerdem:
+The most reliable route is **Steam → Library → Counter-Strike 2 → Properties → Installed Files → Browse**. The selected Steam library also contains:
 
 ```text
 <STEAM_LIBRARY>/steamapps/appmanifest_730.acf
 <STEAM_LIBRARY>/steamapps/common/Counter-Strike Global Offensive/
 ```
 
-Build-ID und Installationsnamen lassen sich read-only aus dem Manifest lesen:
+Read the build ID and installation name from the manifest without modifying it:
 
 ```bash
 rg -n '"(buildid|installdir)"' '<STEAM_LIBRARY>/steamapps/appmanifest_730.acf'
@@ -145,11 +145,11 @@ PowerShell:
 Select-String -Path '<STEAM_LIBRARY>\steamapps\appmanifest_730.acf' -Pattern '"buildid"|"installdir"'
 ```
 
-Typische Standardpfade sind kein Beweis, weil Steam Libraries frei verschoben werden können. Der über Steam geöffnete Ordner oder das zugehörige Manifest ist maßgeblich.
+Typical default paths are not evidence because Steam libraries can be moved. Use the folder opened through Steam or its corresponding manifest.
 
-### 2. Ausgelieferte Textdateien durchsuchen
+### 2. Search shipped text files
 
-Interessant sind vor allem `game/csgo/cfg`, vorhandene Script-/Schema-Verzeichnisse und Server-Configs. Zuerst Dateien inventarisieren, dann gezielt suchen:
+The most relevant locations are `game/csgo/cfg`, script/schema directories, and server configurations. Inventory files first, then search selectively:
 
 ```bash
 rg --files '<CS2_ROOT>/game/csgo/cfg'
@@ -157,13 +157,13 @@ rg -n --glob '*.cfg' --glob '*.txt' --glob '*.vdata' --glob '*.kv3' \
   '\b(cl_crosshair|viewmodel|cl_radar|mp_|sv_)' '<CS2_ROOT>/game/csgo'
 ```
 
-Das findet Verwendungen und ausgelieferte Defaults, aber keine vollständige Command-Liste. Viele Ressourcen liegen in VPK-Archiven und viele Commands werden erst durch Binärmodule registriert. VPKs nur mit einem VPK-fähigen Werkzeug lesen oder extrahieren und niemals für diesen Prozess verändern.
+This finds usage and shipped defaults, not a complete command list. Many resources live in VPK archives and many commands are registered only by binary modules. Read or extract VPKs only with a VPK-aware tool and never modify them during this process.
 
-Eine `strings`- oder Binärtextsuche in Modulen unter `game/bin/<platform>` und `game/csgo/bin/<platform>` darf neue E0-Kandidaten liefern. Sie ist wegen zufälliger Treffer, fehlender Metadaten und dynamischer Registrierung kein E1- oder E2-Nachweis.
+A `strings` or binary text search in modules under `game/bin/<platform>` and `game/csgo/bin/<platform>` may produce new E0 candidates. Random matches, missing metadata, and dynamic registration prevent it from establishing E1 or E2.
 
-### 3. Laufzeitliste über die Entwicklerkonsole erfassen
+### 3. Capture the runtime list through the developer console
 
-CS2 mit Entwicklerkonsole starten, eine lokale Map laden und nacheinander verwenden:
+Start CS2 with the developer console, load a local map, and run:
 
 ```text
 cvarlist
@@ -173,13 +173,13 @@ differences
 condump
 ```
 
-`cvarlist` listet in CS2 ConVars und ConCommands; ein separates `cmdlist` ist für diesen Ablauf nicht erforderlich. `condump` schreibt den sichtbaren Konsoleninhalt in eine `condumpXX.log`. Die Datei anschließend unterhalb der CS2-Installation suchen und zusammen mit Build, Plattform und Kontext archivieren.
+In CS2, `cvarlist` includes ConVars and ConCommands; this process does not require a separate `cmdlist`. `condump` writes visible console content to `condumpXX.log`. Locate the file below the CS2 installation and archive it with build, platform, and context metadata.
 
-Ein negativer Test im Hauptmenü ist nicht ausreichend: Client- und Game-Module registrieren Commands teilweise erst nach dem Laden einer Map oder dem Start eines Servers.
+A negative test in the main menu is insufficient. Client and game modules may register commands only after loading a map or starting a server.
 
-### 4. Einzelnen Command reproduzierbar testen
+### 4. Test one command reproducibly
 
-Für eine ConVar:
+For a ConVar:
 
 ```text
 help cl_crosshairsize
@@ -188,46 +188,46 @@ cl_crosshairsize 2.5
 cl_crosshairsize
 ```
 
-Vorherigen Wert notieren, erwartete Wirkung beobachten und anschließend wiederherstellen. Minimum, Maximum oder ungültige Werte nur in einer rücksetzbaren lokalen Sitzung testen. Bei Action-Commands gibt es keinen Readback; hier werden Ausgangszustand, Ausführung, Konsolenausgabe und Zustandsänderung dokumentiert.
+Record the previous value, observe the expected effect, and restore it. Test minimum, maximum, or invalid values only in a recoverable local session. Action commands have no readback; record the initial state, command, console output, and state change instead.
 
-Server-Commands werden zusätzlich direkt in der Konsole eines isolierten Dedicated Servers geprüft. Client-RCON ist nur ein Transportweg und ersetzt nicht die Angabe, dass der Command serverseitig ausgeführt wurde.
+Also test server commands directly in the console of an isolated dedicated server. Client RCON is only a transport and does not replace evidence that the command executed server-side.
 
-## Prüfprotokoll pro Command
+## Verification record per command
 
-Jeder neue oder geänderte Command erhält im PR mindestens dieses Protokoll:
+Every new or changed command needs at least this record in its pull request:
 
 ```text
 Command: cl_example
-Änderung: neu | geändert | veraltet
-Evidenzstufe: E4
-CS2-Build: <Build-ID und Versionsanzeige>
-Datum: YYYY-MM-DD
-Plattform: windows-x86_64 | linux-x86_64
-Kontext: client | listen-server | dedicated-server
-Quellen: <Artefakt/Commit/Link>
-Metadaten: Typ, Default, Min/Max, relevante Flags
-Test: <Ausgangszustand, Eingabe, Erwartung>
-Ergebnis: <beobachtetes Verhalten>
-Rücksetzung: <zurückgesetzter Wert oder neue Map/Session>
-Reviewer: <Name>
+Change: new | changed | deprecated
+Evidence level: E4
+CS2 build: <build ID and displayed version>
+Date: YYYY-MM-DD
+Platform: windows-x86_64 | linux-x86_64
+Context: client | listen-server | dedicated-server
+Sources: <artifact/commit/link>
+Metadata: type, default, min/max, relevant flags
+Test: <initial state, input, expectation>
+Result: <observed behavior>
+Reset: <restored value or new map/session>
+Reviewer: <name>
 ```
 
-Ein globaler „mit Build X geprüft“-Vermerk darf nicht aus einem reinen Namens-Diff abgeleitet werden. Wenn nur ein Teil nachgetestet wurde, werden ausschließlich die betroffenen `checkedVersion`-Werte angehoben.
+Never derive a global “checked with build X” statement from a name-only diff. If only a subset was retested, update only those entries' `checkedVersion` values.
 
-## Vorgehen bei entfernten oder widersprüchlichen Commands
+## Removed or conflicting commands
 
-1. Treffer in beiden bevorzugten E1-Quellen vergleichen.
-2. Client, lokale Map und gegebenenfalls Dedicated Server prüfen, damit kein noch nicht geladenes Modul übersehen wird.
-3. Patch Notes oder einen dokumentierten Ersatz suchen.
-4. Bis zur Klärung aus Presets und Standardaktivierung entfernen.
-5. Erst bei bestätigtem Wegfall als `deprecated` markieren, im Katalog suchbar lassen und Ersatz nennen.
-6. Serializer muss veraltete Commands weiterhin zuverlässig vom Export ausschließen; der Import soll sie verständlich anzeigen.
+1. Compare results in both preferred E1 sources.
+2. Check the client, a local map, and a dedicated server when relevant so an unloaded module is not overlooked.
+3. Search patch notes for a documented replacement.
+4. Remove the command from presets and default activation while unresolved.
+5. Mark it `deprecated` only after confirmed removal, keep it searchable, and name the replacement.
+6. The serializer must reliably omit deprecated commands; imports should still explain them clearly.
 
-## Taktung
+## Cadence
 
-- **Nach jedem öffentlichen Build:** E1-Diff und vollständige Prüfung aller betroffenen Katalogeinträge.
-- **Monatlich:** offene E0–E3-Kandidaten, Community-Meldungen und plattformspezifische Lücken sichten.
-- **Quartalsweise oder vor einem größeren Release:** E4-Stichprobe aller Presets und aller standardmäßig aktivierten Commands in den drei Kontexten.
-- **Bei gemeldeter Fehlfunktion:** den gemeldeten Build reproduzieren; nicht ungeprüft nur den globalen Versionsstring erhöhen.
+- **After every public build:** E1 diff and complete verification of all affected catalog entries.
+- **Monthly:** review open E0–E3 candidates, community reports, and platform-specific gaps.
+- **Quarterly or before a major release:** E4 sample of all presets and all commands enabled by default in the three contexts.
+- **After a reported failure:** reproduce the reported build; never advance only the global version string without verification.
 
-So bleibt die laufende Arbeit klein: Ein Update erfordert normalerweise nur Diffs und gezielte Regressionstests, während neue Commands den vollständigen E0-bis-E4-Pfad durchlaufen.
+This keeps ongoing work small: an update normally requires diffs and targeted regression tests, while new commands follow the full E0-to-E4 path.

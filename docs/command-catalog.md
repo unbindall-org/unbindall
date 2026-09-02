@@ -1,33 +1,33 @@
-# Command-Katalog
+# Command Catalog
 
-Der Katalog deckt drei Kontexte ab:
+The catalog covers three contexts:
 
-- normale Competitive-Autoexecs: Maus, Crosshair, Viewmodel, Radar, Audio, HUD, Performance und Binds
-- Competitive-Server: Matchformat, Rundenzeiten, Economy, Overtime, Pausen, Zuschauerregeln und Warmup
-- lokale Practice-Configs: Granatentraining, Trefferanzeigen, Respawns, Bots und freie Bewegung
+- standard competitive autoexecs: mouse, crosshair, viewmodel, radar, audio, HUD, performance, and binds
+- competitive servers: match format, round times, economy, overtime, pauses, spectator rules, and warmup
+- local practice configurations: grenade practice, hit visualization, respawns, bots, and free movement
 
-Der kuratierte Stand umfasst 137 Console-Commands: 69 für normale Client-Configs, 40 für Competitive-Server und 28 für Practice sowie sieben Steam-Launch-Optionen. Hinzu kommen die getrennt gepflegten Standard-Bind-Aktionen. Diese Grenze ist bewusst deutlich kleiner als der vollständige Engine-Dump.
+The curated catalog contains 137 console commands: 69 for normal client configurations, 40 for competitive servers, and 28 for practice, plus seven Steam launch options. Standard binding actions are maintained separately. This intentionally remains much smaller than a complete engine dump.
 
-Zur Laufzeit stammen die Definitionen aus `command_definitions`. Der Plattform-Adminbereich pflegt Texte, Control-Typ, Wertebereich, Optionen, Config-Kontexte, Prüfstatus, Reihenfolge und Veröffentlichung. Die TypeScript-Liste bleibt als geprüfte Seed-Quelle für neue Installationen erhalten; produktive Änderungen werden nicht aus Client-Code geladen.
+At runtime, definitions come from `command_definitions`. The platform admin area manages text, control type, value range, options, configuration contexts, verification status, order, and publication. The TypeScript list remains a verified seed for new installations; production changes are not loaded from client code.
 
-## Statusmodell
+## Status model
 
-Jeder `CommandDefinition` besitzt einen `status` mit drei unabhängig auswertbaren Angaben:
+Every `CommandDefinition` has a `status` with three independently evaluated fields:
 
-- `verification`: `verified` ist im geprüften CS2-Dump vorhanden; `deprecated` fehlt dort oder wurde ersetzt und wird vom Serializer nie ausgegeben.
-- `restrictions`: `offline-only` kennzeichnet lokale/private Server-Kontexte, `requires-cheats` zusätzlich Cheat-geschützte Commands.
-- `checkedVersion`: der zuletzt geprüfte öffentliche CS2-Build.
+- `verification`: `verified` means the command exists in the checked CS2 dump; `deprecated` means it is absent or replaced and the serializer never emits it.
+- `restrictions`: `offline-only` marks local/private server contexts, while `requires-cheats` additionally marks cheat-protected commands.
+- `checkedVersion`: the latest public CS2 build against which the command was checked.
 
-In der Oberfläche entsprechen diese Werte den Badges „Verifiziert“, „Veraltet“, „Nur offline“, „Erfordert Cheats“ und „Zuletzt mit CS2-Version … geprüft“.
+The UI represents these values with localized badges equivalent to “Verified,” “Deprecated,” “Offline only,” “Requires cheats,” and “Last checked with CS2 version …”.
 
-## Aktueller Prüfstand
+## Current verification baseline
 
-Der Katalogstand wurde gegen CS2 `Build 24957633` vom 26. August 2026 geprüft. Als maschinennahe Referenz dient der laufend erzeugte [CS2-ConVar- und Command-Dump](https://cs2.poggu.me/dumped-data/convar-list/); der öffentliche Build lässt sich in der [SteamDB-Depot-Historie](https://steamdb.info/app/730/depots/) nachvollziehen.
+The catalog was checked against CS2 `Build 24957633` from August 26, 2026. The continuously generated [CS2 ConVar and command dump](https://cs2.poggu.me/dumped-data/convar-list/) is used as a machine-oriented reference; the public build can be cross-checked in the [SteamDB depot history](https://steamdb.info/app/730/depots/).
 
-Der bisherige Stand bestätigt überwiegend Name, grundsätzliche Syntax und relevante Flags im aktuellen Dump. Das ist noch kein vollständiger Verhaltenstest. Der mehrstufige [Wartungs- und Verifikationsprozess](command-catalog-maintenance.md) trennt deshalb Build-Nachweis, lokale Registrierung, Syntax und tatsächliche Wirkung. Practice-Commands sind zusätzlich als offline/privat markiert.
+The current baseline mostly confirms names, basic syntax, and relevant flags in the dump. It is not a complete behavior test. The staged [maintenance and verification process](command-catalog-maintenance.md) therefore separates build evidence, local registration, syntax, and observed behavior. Practice commands are additionally marked for offline/private use.
 
-## Pflege nach einem CS2-Update
+## Maintenance after a CS2 update
 
-Die verbindlichen Evidenzstufen, Freigaberegeln, lokalen CS2-Prüfungen und PR-Nachweise stehen im [Wartungsleitfaden](command-catalog-maintenance.md). Kurzform: Build fixieren, Quellen diffen, nur betroffene Commands lokal nachtesten, Katalog und Tests ändern und erst danach Versionsangaben anheben. `cvarlist` deckt dabei ConVars und ConCommands ab; ein separates `cmdlist` wird nicht vorausgesetzt.
+The binding evidence levels, publication rules, local CS2 checks, and pull-request records are in the [maintenance guide](command-catalog-maintenance.md). In short: pin the build, diff sources, locally retest only affected commands, update the catalog and tests, then advance version metadata. `cvarlist` covers both ConVars and ConCommands; the process does not assume a separate `cmdlist`.
 
-Action-Commands wie `bot_kick` oder `mp_warmup_end` werden ohne Argument serialisiert. Veraltete Commands bleiben suchbar, sind in der UI gesperrt und werden selbst dann nicht exportiert, wenn ein alter gespeicherter Entwurf sie noch als aktiv führt.
+Action commands such as `bot_kick` and `mp_warmup_end` are serialized without an argument. Deprecated commands remain searchable and disabled in the UI, and are never exported even when an older saved draft still marks them as enabled.

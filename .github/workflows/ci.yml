@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main_coming_soon]
+    branches: [main]
   pull_request:
 
 permissions:
@@ -26,6 +26,25 @@ jobs:
       REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Validate commit messages
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          invalid=0
+          while IFS= read -r subject; do
+            if [[ "$subject" == Merge\ * ]]; then
+              continue
+            fi
+            if [[ ${#subject} -gt 100 ]] || ! [[ "$subject" =~ ^(feat|fix|docs|refactor|test|build|ci|chore|perf|revert)(\([a-z0-9._/-]+\))?!?:\ .+ ]]; then
+              echo "Invalid commit subject: $subject"
+              invalid=1
+            fi
+          done < <(git log --format=%s "$BASE_SHA..$HEAD_SHA")
+          exit "$invalid"
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -103,5 +122,5 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Smoke-, Ausfall- und Lasttest
+      - name: Smoke, failure, and load tests
         run: pnpm test:container

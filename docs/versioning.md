@@ -1,38 +1,38 @@
-# Versionierung und automatische Speicherung
+# Document Versioning and Autosave
 
-Jede Cloud-Config besitzt einen direkt lesbaren aktuellen Stand (`configs`) und ein unveränderliches Revisionslog (`config_revisions`). Der Head macht normale Lesevorgänge unabhängig von der Länge der Historie; das Log ermöglicht die Wiederherstellung jeder serverseitig bestätigten Revision.
+Every cloud configuration has a directly readable current state (`configs`) and an immutable revision log (`config_revisions`). The head keeps normal reads independent of history length; the log can reconstruct every server-confirmed revision.
 
-## Schreibvorgang
+## Write operation
 
-`create`, manueller Speicherpunkt, Autosave, Restore sowie Verschieben in oder aus dem Papierkorb schreiben immer in einer PostgreSQL-Transaktion:
+Creating a configuration, making a manual save point, autosaving, restoring, and moving into or out of trash always happen in one PostgreSQL transaction:
 
-1. Der aktuelle Config-Datensatz wird mit `FOR UPDATE` gesperrt.
-2. `expectedRevision` wird mit der aktuellen Revision verglichen.
-3. Eine neue, unveränderliche Revision wird angehängt.
-4. Dokument, Hash, Revisionsnummer und Zeitstempel des Heads werden aktualisiert.
+1. Lock the current configuration row with `FOR UPDATE`.
+2. Compare `expectedRevision` with the current revision.
+3. Append a new immutable revision.
+4. Update the head's document, hash, revision number, and timestamp.
 
-Eine abweichende Revisionsnummer ergibt `CONFLICT`; ein älterer Browser-Tab überschreibt dadurch keinen neueren Stand. Jede Mutation trägt eine global eindeutige `mutationId`. Wiederholte Übertragungen derselben Mutation erzeugen keine zweite Revision. Manuelle Speicherpunkte können zusätzlich einen frei vergebenen Namen tragen.
+A mismatched revision returns `CONFLICT`, preventing an older browser tab from overwriting a newer state. Every mutation carries a globally unique `mutationId`; retransmitting the same mutation does not create another revision. Manual save points may also have a user-defined name.
 
-## Snapshots und Patches
+## Snapshots and patches
 
-- Revision 1 ist immer ein vollständiger Snapshot.
-- Spätestens jede 50. Revision ist ein Snapshot.
-- Ein Patch, der mindestens 40 Prozent des vollständigen Dokuments benötigt, wird als Snapshot gespeichert.
-- Arrays werden atomar ersetzt, Objekte feldweise verglichen.
-- SHA-256 über kanonisches JSON sichert die Integrität rekonstruierter Stände.
+- Revision 1 is always a complete snapshot.
+- At least every 50th revision is a snapshot.
+- A patch that takes at least 40 percent of the complete document's size is stored as a snapshot.
+- Arrays are replaced atomically; objects are compared field by field.
+- SHA-256 over canonical JSON protects the integrity of reconstructed states.
 
-Damit müssen für einen historischen Stand höchstens 49 Patches nach dem letzten Snapshot angewandt werden. `GeneratorDocument` bleibt die kanonische Wahrheit; die aktuelle CFG-Ausgabe wird daraus erzeugt und nur am Head für Exporte zwischengespeichert.
+Reconstructing any historical state therefore applies at most 49 patches after its latest snapshot. `GeneratorDocument` remains the canonical source of truth; the current CFG output is generated from it and cached only on the head for exports.
 
 ## Autosave
 
-Der Browser speichert den Entwurf weiterhin unmittelbar lokal. Für eine aktive Cloud-Config wird zusätzlich nach einer Sekunde Inaktivität, spätestens aber nach fünf Sekunden kontinuierlicher Bearbeitung gespeichert. Der jeweils neueste noch nicht bestätigte Autosave liegt in IndexedDB und übersteht Reloads sowie Offline-Phasen.
+The browser always saves the draft locally first. An active cloud configuration is also saved after one second of inactivity, or after at most five seconds of continuous editing. The latest unconfirmed autosave stays in IndexedDB across reloads and offline periods.
 
-Die Oberfläche unterscheidet lokal, ausstehend, synchronisierend, gespeichert, offline und Konflikt. Ein Konflikt behält den lokalen Stand und seine Queue bei, bis der Nutzer bewusst einen Serverstand lädt oder anderweitig auflöst.
+The UI distinguishes local, pending, syncing, saved, offline, and conflict states. A conflict retains the local state and its queue until the user deliberately loads the server state or resolves it another way.
 
-## Wiederherstellung und Löschen
+## Restore and deletion
 
-Ein Restore verändert keine vorhandene Revision. Er erzeugt einen neuen Head vom Typ `restore`, sodass auch die Wiederherstellung selbst rückgängig gemacht werden kann. Der Zeitpunkt-Endpunkt löst einen ISO-Zeitpunkt auf die letzte Revision zu oder vor diesem Zeitpunkt auf; bei gleicher Zeit entscheidet die Revisionsnummer.
+A restore never changes an existing revision. It creates a new head of type `restore`, so the restore itself can be undone. The point-in-time endpoint resolves an ISO timestamp to the last revision at or before that time; revision number breaks equal-time ties.
 
-Normales Löschen erzeugt eine `delete`-Revision und setzt `deleted_at`. Die Config bleibt samt Historie im Papierkorb. Erst explizites endgültiges Löschen entfernt Config und Revisionen über die Foreign-Key-Kaskade. Accountlöschung entfernt weiterhin sämtliche zugehörigen Daten.
+Normal deletion creates a `delete` revision and sets `deleted_at`. The configuration and its history remain in trash. Only explicit permanent deletion removes the configuration and revisions through the foreign-key cascade. Account deletion continues to remove all associated data.
 
-Diese Anwendungshistorie ersetzt keine Infrastruktur-Backups. Neon/PostgreSQL-PITR bleibt erforderlich, um auch einen vollständigen Datenbankverlust oder administrative Fehloperationen abzusichern.
+This application-level history is not an infrastructure backup. Neon/PostgreSQL point-in-time recovery remains necessary for complete database loss or administrative mistakes.

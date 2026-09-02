@@ -1,56 +1,56 @@
 # Unbindall — CS2 Autoexec Generator
 
-Ein responsiver Next.js-Generator für Counter-Strike-2-Autoexecs. Einstellungen lassen sich suchen, visuell prüfen, als bestehende CFG importieren, herunterladen und mit einem Auth.js-Account in PostgreSQL speichern.
+A responsive Next.js generator for Counter-Strike 2 autoexec files. Settings are searchable, can be inspected visually, imported from existing configuration files, downloaded, and saved to PostgreSQL through an Auth.js account.
 
-## Enthalten
+## Features
 
-- kuratierter Command-Katalog für Competitive-Autoexecs, Match-Server und Offline-Practice
-- sechs getrennte Config-Arten: Matchmaking, Practice, Server, Offline, Warmup und Launch Options
-- sichtbarer Prüfstatus pro Command: verifiziert/veraltet, Offline- und Cheat-Einschränkungen sowie geprüfter CS2-Build
-- permanente Suche nach Namen, Console-Command und Beschreibung
-- Live-Vorschauen für Crosshair, Radar und Viewmodel
-- vollständige normale Keybinds für Bewegung, Kampf, Waffen, Granaten, Kommunikation und Interface
-- Double-/Mehrfachbind-Modul: eine Aktion auf zwei bis vier Tasten
-- validierte freie Custom-Binds
-- gemeinsame Konflikterkennung über alle Bind-Module
-- verlusttreuer Mehrfachimport für CFG, CS2-VCFG/KV1 und textuelles KV3; Kommentare, Aliases und unbekannte Commands bleiben erhalten
-- typspezifischer Live-Code, Copy und Download für CFGs und Launch Options
-- drei Schnellstart-Presets
-- anonymer Entwurf im Browser
-- Registrierung und Login über Auth.js Credentials, Discord OAuth 2.0 und Steam OpenID 2.0
-- mit `bcrypt` gehashte Passwörter
-- mehrere benutzergebundene Configs in PostgreSQL mit Autosave und vollständigem Versionsverlauf
-- Drizzle-Schema und versionierte SQL-Migration
-- responsive Desktop- und Mobile-Oberfläche
+- curated command catalog for competitive autoexecs, match servers, and offline practice
+- six separate configuration types: Matchmaking, Practice, Server, Offline, Warmup, and Launch Options
+- visible verification state per command: verified/deprecated, offline and cheat restrictions, and verified CS2 build
+- persistent search by name, console command, and description
+- live crosshair, radar, and viewmodel previews
+- complete standard key bindings for movement, combat, weapons, grenades, communication, and the interface
+- double/multi-bind module that assigns one action to two to four keys
+- validated custom binds
+- shared conflict detection across all binding modules
+- lossless multi-file import for CFG, CS2 VCFG/KV1, and textual KV3; comments, aliases, and unknown commands are preserved
+- type-specific live output, copy, and download for CFG files and launch options
+- three quick-start presets
+- anonymous browser drafts
+- registration and sign-in through Auth.js credentials, Discord OAuth 2.0, and Steam OpenID 2.0
+- passwords hashed with `bcrypt`
+- multiple account-owned configurations in PostgreSQL with autosave and complete revision history
+- Drizzle schema and versioned SQL migrations
+- responsive desktop and mobile UI in English and German
 
-## Lokal starten
+## Local setup
 
-Voraussetzungen: Node.js 22 oder neuer, pnpm und ein bestehendes Neon-Projekt.
+Requirements: Node.js 22 or newer, pnpm, and an existing Neon project.
 
 ```bash
 cp .env.example .env
 ```
 
-Trage anschließend die beiden Verbindungen aus dem Neon-Dashboard ein:
+Add the connections from the Neon dashboard:
 
-- `DATABASE_URL`: gepoolte URL für die laufende Anwendung; der Hostname enthält `-pooler`
-- `DATABASE_MIGRATION_URL`: direkte URL ohne `-pooler` für Drizzle-Migrationen
-- `REDIS_URL`: Redis-Verbindung für die zentralen, instanzübergreifenden Rate-Limits
+- `DATABASE_URL`: pooled URL for the running application; the hostname contains `-pooler`
+- `DATABASE_MIGRATION_URL`: direct URL without `-pooler` for Drizzle migrations
+- `REDIS_URL`: Redis connection for centralized, cross-instance rate limits
 
-Die direkte Verbindung für Migrationen entspricht der Empfehlung von Neon. Beide URLs müssen `sslmode=require` enthalten. Ersetze außerdem unbedingt `AUTH_SECRET`. Ein Secret kannst du beispielsweise so erzeugen:
+The direct migration connection follows Neon's recommendation. Both database URLs must contain `sslmode=require`. You must also replace `AUTH_SECRET`; for example, generate one with:
 
 ```bash
 openssl rand -base64 32
 ```
 
-Die Social-Logins werden nur angezeigt, wenn die zugehörigen Variablen vollständig gesetzt sind:
+Social sign-in buttons appear only when all variables for that provider are configured:
 
-- Discord: `AUTH_DISCORD_ID` und `AUTH_DISCORD_SECRET`; im Discord Developer Portal muss als Redirect `http://localhost:3000/api/auth/callback/discord` beziehungsweise in Produktion `https://DEINE-DOMAIN/api/auth/callback/discord` eingetragen sein.
-- Steam: `STEAM_WEB_API_KEY` aus der Steam-Web-API-Key-Seite. Steam Login basiert nicht auf OAuth, sondern auf OpenID 2.0. Realm und Callback werden von der App aus `AUTH_URL` erzeugt und müssen bei Steam nicht separat registriert werden.
+- Discord: set `AUTH_DISCORD_ID` and `AUTH_DISCORD_SECRET`. Register `http://localhost:3000/api/auth/callback/discord` in the Discord Developer Portal for local development, or `https://YOUR-DOMAIN/api/auth/callback/discord` in production.
+- Steam: set `STEAM_WEB_API_KEY` from the Steam Web API key page. Steam sign-in uses OpenID 2.0, not OAuth. The app derives the realm and callback from `AUTH_URL`; they do not need separate registration with Steam.
 
-`AUTH_URL` muss deshalb in jeder Umgebung exakt auf die öffentlich erreichbare Origin zeigen, lokal also `http://localhost:3000`, in Produktion beispielsweise `https://unbindall.org`. In Produktion muss `AUTH_EXPECTED_HOST` zusätzlich exakt den erwarteten Hostnamen enthalten. `AUTH_TRUST_HOST=true` ist nur hinter einem kontrollierten Reverse Proxy zulässig; `TRUSTED_PROXY_COUNT` gibt die Anzahl der vertrauenswürdigen Proxy-Hops an.
+`AUTH_URL` must exactly match the publicly reachable origin in every environment: `http://localhost:3000` locally or, for example, `https://unbindall.org` in production. In production, `AUTH_EXPECTED_HOST` must exactly match the expected hostname. Use `AUTH_TRUST_HOST=true` only behind a controlled reverse proxy; `TRUSTED_PROXY_COUNT` is the number of trusted proxy hops.
 
-Danach:
+Then run:
 
 ```bash
 pnpm install
@@ -58,45 +58,47 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Die App läuft anschließend unter [http://localhost:3000](http://localhost:3000).
+The app is available at [http://localhost:3000](http://localhost:3000).
 
-## Befehle
+## Commands
 
 ```bash
-pnpm dev          # Entwicklungsserver
-pnpm typecheck    # strikte TypeScript-Prüfung
-pnpm lint         # ESLint
-pnpm test         # Domain- und Serializer-Tests
-pnpm test:db:up   # isolierte PostgreSQL-Testdatenbank starten
-pnpm test:integration # Router, Migrationen, Auth und Kaskaden gegen PostgreSQL
-pnpm test:e2e     # Browser-Flows mit Playwright/Chromium
-pnpm test:container # Container-Smoke, DB-Ausfall und einfacher Lasttest
-pnpm test:db:down # Testdatenbank und Testvolumes entfernen
-pnpm build        # Typprüfung + Produktions-Build
-pnpm db:generate  # Migration aus dem Drizzle-Schema erzeugen
-pnpm db:migrate   # offene Migrationen anwenden
-pnpm db:studio    # Datenbankoberfläche öffnen
+pnpm dev              # development server
+pnpm typecheck        # strict TypeScript check
+pnpm lint             # ESLint
+pnpm test             # domain and serializer tests
+pnpm test:db:up       # start the isolated PostgreSQL test database
+pnpm test:integration # routers, migrations, auth, and cascades against PostgreSQL
+pnpm test:e2e         # browser flows with Playwright/Chromium
+pnpm test:container   # container smoke, database failure, and basic load test
+pnpm test:db:down     # remove the test database and volumes
+pnpm build            # type check and production build
+pnpm db:generate      # generate a migration from the Drizzle schema
+pnpm db:migrate       # apply pending migrations
+pnpm db:studio        # open the database UI
 ```
 
-## Datenmodell
+## Data model
 
-Auth.js verwendet die Tabellen `users`, `accounts`, `sessions` und `verification_tokens`. `configs` hält den aktuellen Stand, `config_revisions` die unveränderliche Historie aus Snapshots und Patches. Aktive Config-Namen sind pro Account eindeutig. Normales Löschen verschiebt eine Config samt Historie in den Papierkorb; beim Löschen eines Accounts werden Sessions, Provider-Konten, Configs und Revisionen kaskadierend entfernt. Das Revisionskonzept ist in [docs/versioning.md](docs/versioning.md) beschrieben.
+Auth.js uses the `users`, `accounts`, `sessions`, and `verification_tokens` tables. `configs` contains the current state, while `config_revisions` contains an immutable history of snapshots and patches. Active configuration names are unique per account. Normal deletion moves a configuration and its history to the trash; deleting an account cascades to sessions, provider accounts, configurations, and revisions. See [docs/versioning.md](docs/versioning.md) for the revision model.
 
-`command_definitions` ist die Laufzeitquelle für den Generator-Katalog. Migration `0006` übernimmt den kuratierten TypeScript-Bestand vollständig als zweisprachigen Seed. Öffentliche Lesezugriffe verwenden einen sortierten, für 60 Sekunden getaggten Snapshot; Admin-Änderungen invalidieren ihn sofort. Die Pflege erfolgt im Plattform-Adminbereich. Veröffentlichte Command-Namen sind stabil, parallele Änderungen werden über eine optimistische Revision erkannt und Entwürfe können erst nach dem Deaktivieren gelöscht werden.
+`command_definitions` is the runtime source for the generator catalog. Migration `0006` imports the curated TypeScript catalog as a bilingual seed. Public reads use a sorted, tagged snapshot cached for 60 seconds; admin changes invalidate it immediately. The platform admin area manages catalog entries. Published command names are stable, concurrent updates use optimistic revisions, and drafts can be deleted only after being disabled.
 
-Accounts haben die Rollen `user`, `moderator` und `platform_admin`. Platform-Admins dürfen zusätzlich den Moderatorenbereich öffnen und können Rollen im Adminbereich verwalten; Moderatoren erhalten keinen Adminzugriff. Der erste Platform-Admin wird nach der Registrierung einmalig kontrolliert in der Datenbank gesetzt, beispielsweise mit `UPDATE users SET role = 'platform_admin' WHERE email = 'admin@example.com';`. Weitere Rollenänderungen erfolgen anschließend im Adminbereich.
+Accounts have `user`, `moderator`, and `platform_admin` roles. Platform administrators can also open the moderator area and manage roles; moderators cannot access the admin area. Set the first platform administrator once after registration, for example with `UPDATE users SET role = 'platform_admin' WHERE email = 'admin@example.com';`. Further role changes happen in the admin area.
 
-Alle Login-Arten verwenden signierte JWT-Cookies. Passwörter werden ausschließlich als bcrypt-Hash gespeichert. Discord-Konten werden niemals automatisch anhand einer E-Mail-Adresse mit einem bestehenden Account verknüpft. Eine Verknüpfung ist nur explizit in einer bereits authentifizierten Sitzung unter „Account & Daten“ möglich. Steam-Identitäten werden mit einer State-Cookie, einer frischen OpenID-Nonce und einer serverseitigen `check_authentication`-Anfrage an Steam geprüft.
+All sign-in methods use signed JWT cookies. Passwords are stored only as bcrypt hashes. Discord accounts are never linked automatically by email; linking requires an explicit action in an authenticated session under “Account & Data.” Steam identities are checked with a state cookie, a fresh OpenID nonce, and a server-side `check_authentication` request to Steam.
 
-Redis begrenzt Registrierung, Credentials-Login, Auth-Endpunkte, Steam-Start und -Callback, Account-Löschung, Exporte und Config-Schreiblast jeweils nach IP und/oder Account. Fällt Redis in Produktion aus, werden die geschützten Operationen sicher abgewiesen. Pro Account gelten außerdem maximal 25 Configs inklusive Papierkorb und 10 MiB logisches Datenvolumen. Revisionshistorien werden ab 200 Einträgen auf die letzten 100 Stände verdichtet; Config-Dokumente akzeptieren höchstens 500 `commandValues`.
+Redis rate-limits registration, credential sign-in, auth endpoints, the Steam start and callback, account deletion, exports, and configuration writes by IP and/or account. In production, protected operations fail closed when Redis is unavailable. Each account is limited to 25 configurations including trash and 10 MiB of logical data. Revision histories compact from 200 entries to the latest 100 states, and configuration documents accept at most 500 `commandValues`.
 
 ## Deployment
 
-Der Server benötigt `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_EXPECTED_HOST` und eine explizite `AUTH_TRUST_HOST`-Entscheidung. Hinter einem vertrauenswürdigen Reverse Proxy kommen `AUTH_TRUST_HOST=true` und `TRUSTED_PROXY_COUNT` hinzu. Für Discord müssen `AUTH_DISCORD_ID` und `AUTH_DISCORD_SECRET` gemeinsam gesetzt werden, für Steam optional `STEAM_WEB_API_KEY`. Die Produktionskonfiguration wird beim Serverstart zentral validiert; unsichere Secrets, HTTP-Origins, unerwartete Domains, ungepoolte/TLS-lose Datenbank-URLs und inkonsistente Provider-Konfigurationen brechen den Start ab. Die Build-/Deployment-Umgebung benötigt zusätzlich `DATABASE_MIGRATION_URL`, wenn sie Migrationen ausführt. Vor dem Start einer neuen Version muss `pnpm db:migrate` gegen die direkte Neon-Verbindung ausgeführt werden. Die App benötigt eine Node.js-Laufzeit; ein rein statischer Export reicht wegen Auth.js und der Config-API nicht aus.
+The server requires `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_EXPECTED_HOST`, and an explicit `AUTH_TRUST_HOST` decision. A trusted reverse proxy additionally requires `AUTH_TRUST_HOST=true` and `TRUSTED_PROXY_COUNT`. Discord requires `AUTH_DISCORD_ID` and `AUTH_DISCORD_SECRET` together; Steam optionally uses `STEAM_WEB_API_KEY`.
 
-### Docker und Dokploy
+Production configuration is validated centrally at server startup. Weak secrets, HTTP origins, unexpected domains, unpooled or TLS-less database URLs, and inconsistent provider settings stop startup. Build or deployment environments also need `DATABASE_MIGRATION_URL` when they run migrations. Run `pnpm db:migrate` against the direct Neon connection before starting a new version. Auth.js and the configuration API require a Node.js runtime; a static export is not sufficient.
 
-Das Multi-Stage-`Dockerfile` baut Next.js als Standalone-Server. Das finale Image enthält weder Quellcode noch Entwicklungsabhängigkeiten und läuft als unprivilegierter Benutzer auf Port `3000`. Lokal lässt es sich so prüfen:
+### Docker and Dokploy
+
+The multi-stage `Dockerfile` builds Next.js as a standalone server. The final image contains neither source code nor development dependencies and runs as an unprivileged user on port `3000`. Test it locally with:
 
 ```bash
 docker build -t unbindall .
@@ -104,41 +106,41 @@ docker run --rm -p 3000:3000 \
   -e DATABASE_URL='postgresql://…-pooler…/neondb?sslmode=require' \
   -e REDIS_URL='rediss://…' \
   -e AUTH_SECRET='…' \
-  -e AUTH_URL='https://deine-domain.example' \
-  -e AUTH_EXPECTED_HOST='deine-domain.example' \
+  -e AUTH_URL='https://your-domain.example' \
+  -e AUTH_EXPECTED_HOST='your-domain.example' \
   -e AUTH_TRUST_HOST='true' \
   -e TRUSTED_PROXY_COUNT='1' \
   unbindall
 ```
 
-In Dokploy wird das Repository als Anwendung mit dem Build-Typ `Dockerfile` eingerichtet. Der Dockerfile-Pfad ist `Dockerfile`, der Container-Port `3000`; ein eigener Startbefehl ist nicht nötig. Folgende Variablen gehören in die Runtime-Umgebung:
+In Dokploy, configure the repository as an application with build type `Dockerfile`, Dockerfile path `Dockerfile`, and container port `3000`. No custom start command is required. Add these variables to the runtime environment:
 
 ```dotenv
 DATABASE_URL=postgresql://…-pooler…/neondb?sslmode=require
 REDIS_URL=rediss://…
 AUTH_SECRET=…
-AUTH_URL=https://deine-domain.example
-AUTH_EXPECTED_HOST=deine-domain.example
+AUTH_URL=https://your-domain.example
+AUTH_EXPECTED_HOST=your-domain.example
 AUTH_TRUST_HOST=true
 TRUSTED_PROXY_COUNT=1
 ```
 
-Optional kommen die Discord- und Steam-Variablen aus dem Abschnitt „Lokal starten“ hinzu. Secrets werden nicht als Docker-Build-Argumente übergeben. Der Healthcheck ruft `/api/health` auf.
+Optionally add the Discord and Steam variables described under “Local setup.” Do not pass secrets as Docker build arguments. The health check calls `/api/health`.
 
-Migrationen sind absichtlich kein Teil des Container-Starts, damit parallele oder neu gestartete Instanzen sie nicht gleichzeitig ausführen. Vor dem Deployment einer Version mit Schemaänderungen wird einmalig in einer kontrollierten Umgebung ausgeführt:
+Migrations are intentionally not part of container startup so concurrent or restarted instances cannot run them simultaneously. Before deploying a version with schema changes, run this once in a controlled environment:
 
 ```bash
 DATABASE_MIGRATION_URL='postgresql://…' pnpm db:migrate
 ```
 
-Die GitHub-Actions-Pipeline baut das Produktions-Image bei jedem Pull Request und jedem Push auf `main`. Dadurch werden Änderungen am Dockerfile bereits vor einem Dokploy-Deployment geprüft.
+## Contributing
 
-## Mitmachen
+Extension points and module boundaries are documented in [docs/architecture.md](docs/architecture.md). Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) before opening your first pull request. New generator modules should include their data model, validation, and at least one serializer test.
 
-Die Erweiterungspunkte und Modulgrenzen sind in [docs/architecture.md](docs/architecture.md) beschrieben. Lies vor dem ersten Pull Request bitte [CONTRIBUTING.md](CONTRIBUTING.md). Insbesondere neue Generator-Module sollen ihr Datenmodell, ihre Validierung und mindestens einen Serializer-Test gemeinsam liefern.
+See [CHANGELOG.md](CHANGELOG.md) for notable changes and [docs/releasing.md](docs/releasing.md) for versioning, tagging, and release conventions.
 
-## Lizenz
+## License
 
-Unbindall ist freie Open-Source-Software unter der [GNU Affero General Public License v3.0](LICENSE).
+Unbindall is free and open-source software licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
-Umfang und Statusmodell stehen in [docs/command-catalog.md](docs/command-catalog.md). Der mehrstufige Ablauf für Recherche, lokale CS2-Prüfung und Pflege nach Updates steht im [Wartungsleitfaden](docs/command-catalog-maintenance.md).
+The catalog scope and status model are documented in [docs/command-catalog.md](docs/command-catalog.md). The staged research, local CS2 verification, and post-update maintenance process is documented in the [catalog maintenance guide](docs/command-catalog-maintenance.md).

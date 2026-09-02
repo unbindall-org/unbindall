@@ -1,15 +1,15 @@
 # Contributing
 
-Danke, dass du Unbindall verbessern möchtest. Das Projekt soll für CS2-Spieler verständlich und für Maintainer mit wenig Zeit gut prüfbar bleiben.
+Thank you for improving Unbindall. The project should remain understandable to CS2 players and easy to review for maintainers with limited time. Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Lokales Setup
+## Local setup
 
-1. Repository forken und Branch von `main` erstellen.
-2. `.env.example` nach `.env` kopieren und eigene Neon-Entwicklungsdaten eintragen.
-3. `pnpm install` und `pnpm db:migrate` ausführen.
-4. Entwicklung mit `pnpm dev` starten.
+1. Fork the repository and create a branch from `main`.
+2. Copy `.env.example` to `.env` and add your own Neon development credentials.
+3. Run `pnpm install` and `pnpm db:migrate`.
+4. Start development with `pnpm dev`.
 
-## Vor einem Pull Request
+## Before opening a pull request
 
 ```bash
 pnpm lint
@@ -18,9 +18,9 @@ pnpm test
 pnpm build
 ```
 
-Alle vier Prüfungen müssen erfolgreich sein. Pull Requests sollen eine konkrete Änderung enthalten und Screenshots für sichtbare UI-Änderungen mitbringen.
+All four checks must pass. Keep each pull request focused on one change and include screenshots for visible UI changes.
 
-Änderungen an Persistenz, Authentifizierung oder Containerbetrieb müssen zusätzlich die passenden erweiterten Suiten bestehen:
+Changes to persistence, authentication, or container operation must also pass the relevant extended suites:
 
 ```bash
 pnpm test:db:up
@@ -30,25 +30,43 @@ pnpm test:db:down
 pnpm test:container
 ```
 
-`test:integration` migriert die ausschließlich für Tests vorgesehene PostgreSQL-Datenbank vor der Suite aus einem leeren Schema. `test:e2e` benötigt einmalig einen Chromium-Browser (`pnpm exec playwright install chromium`). `test:container` baut den Produktionscontainer, prüft den DB-abhängigen Healthcheck, simuliert einen Datenbankausfall und führt den kleinen Login-/Autosave-/Export-Lasttest aus.
+`test:integration` migrates the test-only PostgreSQL database from an empty schema before the suite. `test:e2e` requires a one-time Chromium installation with `pnpm exec playwright install chromium`. `test:container` builds the production container, checks the database-dependent health endpoint, simulates a database outage, and runs the small sign-in, autosave, and export load test.
 
-## Neue Commands
+## New commands
 
-- Nur aktuell in CS2 vorhandene Commands aufnehmen.
-- Den vollständigen [Wartungs- und Verifikationsprozess](docs/command-catalog-maintenance.md) bis Evidenzstufe E4 durchlaufen und das Prüfprotokoll im Pull Request ergänzen.
-- Build, Plattform, Kontext, Quelle und Prüfdatum im Pull Request nennen.
-- Client-, Server-, Practice-, Cheat- und Development-Commands klar trennen.
-- Wertebereich, Standardwert und verständliche deutsche Beschreibung ergänzen.
+- Add only commands that currently exist in CS2.
+- Complete the [maintenance and verification process](docs/command-catalog-maintenance.md) through evidence level E4 and include the verification record in the pull request.
+- State the build, platform, context, source, and verification date in the pull request.
+- Clearly separate client, server, practice, cheat-protected, and development commands.
+- Add the value range, default value, and clear descriptions in both English and German.
 
-## Neue Module
+## New modules
 
-Ein Modul besitzt einen eindeutigen Eintrag in `src/features/generator/modules/registry.ts`. Eigene Daten gehören in das versionierte `GeneratorDocument`, nicht in lose Local-Storage-Keys. Jede neue Ausgabe muss durch den zentralen Serializer laufen und durch mindestens einen Test abgedeckt sein.
+A module has one unique entry in `src/features/generator/modules/registry.ts`. Module data belongs in the versioned `GeneratorDocument`, not in unrelated local-storage keys. Every new output path must use the central serializer and have at least one test.
 
-Wenn sich das persistierte Dokumentformat ändert, erhöhe die `GENERATOR_SCHEMA_VERSION` und ergänze eine rückwärtskompatible Migration in `normalizeDocument`.
+When the persisted document format changes, increment `GENERATOR_SCHEMA_VERSION` and add a backward-compatible migration in `normalizeDocument`.
 
-## Commits und Reviews
+## Commits and reviews
 
-- Kleine, beschreibende Commits bevorzugen.
-- Keine Secrets, `.env`-Dateien oder echte Spielerinformationen committen.
-- Dependency-Updates nicht mit Feature-Änderungen vermischen.
-- Verhalten und Motivation im PR beschreiben; Code allein ist keine Produktentscheidung.
+All new pull-request commits use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```text
+feat(generator): add grenade practice preset
+fix(auth): reject expired Steam nonce
+docs(catalog): clarify E4 verification
+build(deps): update Auth.js beta
+```
+
+Use one of `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`, `chore`, `perf`, or `revert`, optionally followed by a lowercase scope. Add `!` before the colon for a breaking change and explain it in the commit body. Keep the subject at 100 characters or fewer. CI validates every commit added by a pull request, so the repository's old placeholder commits do not affect new contributions.
+
+- Prefer small, descriptive commits that each leave the project in a coherent state.
+- Do not commit secrets, `.env` files, or real player information.
+- Do not mix dependency updates with feature changes.
+- Explain behavior and motivation in the pull request; code alone is not a product decision.
+- Add user-visible changes to the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md).
+
+## Dependency updates
+
+Dependabot opens weekly pull requests for pnpm dependencies, GitHub Actions, and Docker. Auth.js packages are grouped so the production `next-auth` beta is reviewed together with its adapter. Do not merge dependency updates on a green lockfile alone: read upstream release notes, run the normal suite, and run authentication or migration integration tests when the affected package participates in those paths.
+
+Major updates stay separate from grouped minor and patch updates. Security updates may override the normal grouping and should be prioritized. See [docs/releasing.md](docs/releasing.md) for release preparation and tagging.

@@ -37,9 +37,8 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   output: "standalone",
   poweredByHeader: false,
-  // `pnpm build` performs the strict typecheck before Next starts compiling.
-  // Keeping Next's duplicate worker check off also makes builds work in restricted CI sandboxes.
-  typescript: { ignoreBuildErrors: true },
+  // Next's default CLI checker cannot parse `tsc --showConfig` in this setup.
+  // The compiler-API checker still makes every direct `next build` fail on type errors.
   experimental: { useTypeScriptCli: false },
   ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
   async headers() {

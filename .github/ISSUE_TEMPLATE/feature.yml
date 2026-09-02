@@ -1,5 +1,5 @@
-name: Generator-Modul oder Feature
-description: Eine neue, klar abgegrenzte Funktion vorschlagen
+name: Generator module or feature
+description: Propose a new, clearly scoped capability
 title: "[Feature]: "
 labels: [enhancement]
 body:
@@ -7,25 +7,25 @@ body:
     id: problem
     attributes:
       label: Problem
-      description: Welches konkrete CS2-Config-Problem soll gelöst werden?
+      description: Which specific CS2 configuration problem should this solve?
     validations:
       required: true
   - type: textarea
     id: solution
     attributes:
-      label: Vorgeschlagene Lösung
-      description: Beschreibe Workflow, erzeugte CFG-Zeilen und gewünschte Validierung.
+      label: Proposed solution
+      description: Describe the workflow, generated CFG lines, and expected validation.
     validations:
       required: true
   - type: input
     id: source
     attributes:
-      label: CS2-Quelle
-      description: Aktuelle Valve-/GameTracking-Quelle für betroffene Commands.
+      label: CS2 source
+      description: Current Valve or GameTracking source for affected commands.
   - type: checkboxes
     id: safety
     attributes:
-      label: Sicherheit
+      label: Safety
       options:
-        - label: Das Feature automatisiert nicht mehrere Bewegungs- oder Angriffsaktionen mit einem Input.
+        - label: This feature does not automate multiple movement or attack actions with one input.
           required: true

@@ -1,64 +1,63 @@
-# Architektur
+# Architecture
 
-Unbindall ist eine Next.js-App mit drei klaren Schichten: Web/API, Generator-Domain und Infrastruktur.
-Fachliche Client-Server-Kommunikation läuft ausschließlich typisiert über tRPC und TanStack Query; Server Actions werden nicht verwendet.
+Unbindall is a Next.js application with three distinct layers: web/API, generator domain, and infrastructure. Application-specific client/server communication is fully typed through tRPC and TanStack Query; the project does not use Server Actions.
 
-## Verzeichnisstruktur
+## Directory structure
 
 ```text
 src/
-├── app/                         Next.js-Seiten, Auth- und tRPC-Handler
-├── db/                          Drizzle-Verbindung und PostgreSQL-Schema
+├── app/                         Next.js pages, auth handlers, and tRPC handlers
+├── db/                          Drizzle connection and PostgreSQL schema
 ├── features/
-│   ├── auth/components/         Auth-Oberfläche
-│   ├── auth/server/             Steam OpenID, Provider-Konten und Auth-Secrets
+│   ├── auth/components/         authentication UI
+│   ├── auth/server/             Steam OpenID, provider accounts, and auth secrets
 │   └── generator/
-│       ├── catalog/             kuratierte CS2-Commands und Bind-Aktionen
-│       ├── components/          Generator- und Modul-Oberflächen
-│       ├── domain/              Dokument, Validierung, Import und Export
-│       └── modules/             Registry der sichtbaren Generator-Module
-├── trpc/                        Kontext, Router, Prozeduren und Query-Provider
-└── types/                       externe TypeScript-Erweiterungen
+│       ├── catalog/             curated CS2 commands and binding actions
+│       ├── components/          generator and module UI
+│       ├── domain/              document, validation, import, and export
+│       └── modules/             registry of visible generator modules
+├── trpc/                        context, routers, procedures, and query provider
+└── types/                       external TypeScript augmentations
 ```
 
 ## GeneratorDocument
 
-`GeneratorDocument` ist das einzige persistierte Generatorformat. Es enthält:
+`GeneratorDocument` is the only persisted generator format. It contains:
 
 - `schemaVersion`
-- `configType` (`matchmaking`, `practice`, `server`, `offline`, `warmup` oder `launch-options`)
-- Werte und Aktivierungsstatus der Console-Commands
-- normale Binds
-- Double-/Mehrfachbinds
-- freie Custom-Binds
-- bis zu zehn verlustfrei erhaltene CFG-, VCFG- oder KV3-Importquellen
+- `configType` (`matchmaking`, `practice`, `server`, `offline`, `warmup`, or `launch-options`)
+- console-command values and enabled states
+- standard binds
+- double/multi-binds
+- custom binds
+- up to ten losslessly retained CFG, VCFG, or KV3 import sources
 
-Local Storage, IndexedDB, Neon und Config-Import werden beim Einlesen über `normalizeDocument` normalisiert. Alte flache Entwürfe und Dokumente ohne Typ werden automatisch als Matchmaking-Config in das versionierte Format übernommen.
+Local Storage, IndexedDB, Neon, and imported configurations are normalized through `normalizeDocument` when read. Older flat drafts and documents without a type are automatically migrated to the versioned format as matchmaking configurations.
 
-Cloud-Configs verwenden einen vollständigen aktuellen Head und ein append-only Revisionslog aus hybriden Snapshots und Patches. Autosaves prüfen die erwartete Revisionsnummer optimistisch und werden offline idempotent in IndexedDB gepuffert. Details und Wiederherstellungssemantik stehen in [versioning.md](versioning.md).
+Cloud configurations use a complete current head and an append-only revision log made of hybrid snapshots and patches. Autosaves optimistically check the expected revision and are queued idempotently in IndexedDB while offline. See [versioning.md](versioning.md) for details and restore semantics.
 
-Klassische CFG-Dateien bleiben beim Import wortgetreu und in Dateireihenfolge erhalten. Der Serializer setzt die editierbaren Generator-Werte danach als Overrides. Textuelle CS2-VCFG/KV1- und KV3-Dateien werden in ausführbare ConVar- und Bind-Zeilen übersetzt; ihre vollständige Originalquelle bleibt zusätzlich als Kommentarblock im Export und im Dokument gespeichert.
+Classic CFG files retain their exact text and file order on import. The serializer appends editable generator values as overrides. Textual CS2 VCFG/KV1 and KV3 files are translated into executable ConVar and bind lines; their complete original source is also retained as a comment block in the export and document.
 
-## Module
+## Modules
 
-Die Modul-Registry steuert Navigation, Suche und Rendering. Einstellungsbereiche verwenden den gemeinsamen Command-Katalog. Bind-Module dürfen eigene strukturierte Daten besitzen, müssen ihre finale Ausgabe aber über `resolveBindings` und `serializeConfig` erzeugen. Dadurch gelten Konfliktprüfung, Escaping und Deduplizierung überall gleich.
+The module registry controls navigation, search, and rendering. Settings sections use the shared command catalog. Bind modules may own structured data, but must produce final output through `resolveBindings` and `serializeConfig`. Conflict checks, escaping, and deduplication therefore apply consistently.
 
-Ein Double-Bind bedeutet in Unbindall: mehrere Tasten führen dieselbe einzelne Aktion aus. Eine Taste, die mehrere Bewegungs- oder Angriffsaktionen automatisiert, ist bewusst nicht Teil des Generators.
+A double bind in Unbindall means that multiple keys execute the same single action. A key that automates multiple movement or attack actions is intentionally outside the generator's scope.
 
-## Datenfluss
+## Data flow
 
 ```text
-UI-Modul → GeneratorDocument → Typfilter → Validierung → Serializer → *.cfg / Launch Options
+UI module → GeneratorDocument → type filter → validation → serializer → *.cfg / launch options
                          └────→ IndexedDB → TanStack Query → tRPC → Auth.js → Drizzle → Neon JSONB
 ```
 
-## Sicherheitsgrenzen
+## Security boundaries
 
-- Geschützte tRPC-Prozeduren leiten die User-ID ausschließlich aus der serverseitigen Auth.js-Session ab.
-- Updates und Deletes filtern immer nach Config-ID und User-ID.
-- Revisionen werden atomar mit dem aktuellen Head geschrieben; veraltete Clients erhalten einen Konflikt statt eines stillen Überschreibens.
-- Custom-Binds erlauben nur eine Aktion und sperren Commands, die andere Configs laden oder Bindings global verändern.
-- Credentials-Passwörter werden mit bcrypt gehasht.
-- Discord läuft über den Auth.js-OAuth-Provider; nur von Discord verifizierte E-Mail-Adressen werden automatisch verknüpft.
-- Steam-Assertions werden per State-Cookie, Callback-Bindung, Nonce-Frische und direkter OpenID-Verifikation bei Steam geprüft. Ein kurzlebiger HMAC-Token übergibt die bestätigte Steam-ID anschließend intern an Auth.js.
-- Secrets bleiben ausschließlich in der Laufzeitumgebung.
+- Protected tRPC procedures derive the user ID only from the server-side Auth.js session.
+- Updates and deletes always filter by both configuration ID and user ID.
+- Revisions are written atomically with the current head; stale clients receive a conflict instead of silently overwriting newer data.
+- Custom binds allow one action and block commands that load other configurations or globally change bindings.
+- Credential passwords are hashed with bcrypt.
+- Discord uses the Auth.js OAuth provider; only email addresses verified by Discord are eligible for explicit account linking.
+- Steam assertions are checked with a state cookie, callback binding, nonce freshness, and direct OpenID verification with Steam. A short-lived HMAC token then passes the confirmed Steam ID internally to Auth.js.
+- Secrets remain exclusively in the runtime environment.
