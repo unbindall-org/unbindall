@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { inferRouterOutputs } from "@trpc/server";
 import { CircleAlert, LoaderCircle } from "lucide-react";
@@ -39,8 +39,6 @@ import {
 import {
   selectConfigDefinition,
   selectEnabledCount,
-  selectLineCount,
-  selectRawConfig,
 } from "@/features/generator/state/selectors";
 import { GeneratorWorkspace } from "@/features/generator/components/generator-workspace";
 import { ConfigOutputDialog } from "@/features/generator/components/config-output-dialog";
@@ -150,6 +148,7 @@ function AppShellContent({
   const canAdminister = Boolean(user && hasRole(user.role, "platform_admin"));
 
   const generatorDocument = useGeneratorEditorStore((state) => state.document);
+  const editorCatalog = useGeneratorEditorStore((state) => state.catalog);
   const configName = useGeneratorEditorStore((state) => state.name);
   const origin = useGeneratorEditorStore((state) => state.origin);
   const sync = useGeneratorEditorStore((state) => state.sync);
@@ -162,10 +161,16 @@ function AppShellContent({
   const setQuery = useGeneratorEditorStore((state) => state.setQuery);
   const setShowAllCommands = useGeneratorEditorStore((state) => state.setShowAllCommands);
   const setSliderActive = useGeneratorEditorStore((state) => state.setSliderActive);
-  const rawConfig = useGeneratorEditorStore((state) => selectRawConfig(state, editorLocale));
   const configDefinition = useGeneratorEditorStore(selectConfigDefinition);
   const enabledCount = useGeneratorEditorStore(selectEnabledCount);
-  const lineCount = useGeneratorEditorStore((state) => selectLineCount(state, editorLocale));
+  // Config rendering is useful for secondary status and dialogs, but it should
+  // not compete with the urgent pointer update that is moving a slider.
+  const deferredGeneratorDocument = useDeferredValue(generatorDocument);
+  const rawConfig = useMemo(
+    () => serializeConfig(deferredGeneratorDocument, editorLocale, editorCatalog),
+    [deferredGeneratorDocument, editorCatalog, editorLocale],
+  );
+  const lineCount = useMemo(() => rawConfig ? rawConfig.split("\n").length : 0, [rawConfig]);
 
   const workspaceHydrated = useWorkspaceStore((state) => state.hydrated);
   const localProjects = useWorkspaceStore((state) => state.projects);
@@ -410,13 +415,36 @@ function AppShellContent({
 
   /** Mirrors editor changes back into the browser-only config the tab points at. */
   useEffect(() => {
-    return editorStore.subscribe((state, previous) => {
+    let pending: { localId: string; name: string; document: GeneratorDocument } | null = null;
+    let timer: number | null = null;
+
+    function flush() {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      if (!pending) return;
+      workspaceStore.getState().updateLocalConfig(pending.localId, {
+        name: pending.name,
+        document: pending.document,
+      });
+      pending = null;
+    }
+
+    const unsubscribe = editorStore.subscribe((state, previous) => {
       const localId = openLocalIdRef.current;
       if (!localId || state.hydration !== "ready") return;
       if (state.document === previous.document && state.name === previous.name) return;
       if (state.origin.type === "cloud") return;
-      workspaceStore.getState().updateLocalConfig(localId, { name: state.name, document: state.document });
+      pending = { localId, name: state.name, document: state.document };
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(flush, 250);
     });
+
+    window.addEventListener("pagehide", flush);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
   }, [editorStore, workspaceStore]);
 
   /* ------------------------------------------------------------ tab loading */
@@ -482,9 +510,10 @@ function AppShellContent({
     ]);
   }, [queryClient, trpc.config.list]);
 
+  const deferredConfigName = useDeferredValue(configName);
   const documentFingerprint = useMemo(
-    () => JSON.stringify({ name: configName, values: generatorDocument }),
-    [configName, generatorDocument],
+    () => editorFingerprint(deferredConfigName, deferredGeneratorDocument),
+    [deferredConfigName, deferredGeneratorDocument],
   );
 
   useEffect(() => {
@@ -756,14 +785,15 @@ function AppShellContent({
   }
 
   async function copyConfig() {
-    await navigator.clipboard.writeText(rawConfig);
+    await navigator.clipboard.writeText(serializeConfig(generatorDocument, editorLocale, localizedCommands));
     setCopied(true);
     toast.success(t(configDefinition.outputKind === "launch-options" ? "Launch Options kopiert." : "Config kopiert."));
     window.setTimeout(() => setCopied(false), 1800);
   }
 
   function downloadConfig() {
-    const blob = new Blob([rawConfig], { type: "text/plain;charset=utf-8" });
+    const source = serializeConfig(generatorDocument, editorLocale, localizedCommands);
+    const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = configDefinition.fileName;
@@ -816,6 +846,7 @@ function AppShellContent({
     event.preventDefault();
     try {
       const mutationId = crypto.randomUUID();
+      const currentRawConfig = serializeConfig(generatorDocument, editorLocale, localizedCommands);
       const saved = currentId
         ? await saveConfigMutation.mutateAsync({
           id: currentId,
@@ -824,13 +855,13 @@ function AppShellContent({
           checkpointLabel: checkpointLabel.trim() || undefined,
           name: configName,
           values: generatorDocument,
-          rawConfig,
+          rawConfig: currentRawConfig,
         })
         : await createConfigMutation.mutateAsync({
           name: configName,
           configType: generatorDocument.configType,
           values: generatorDocument,
-          rawConfig,
+          rawConfig: currentRawConfig,
           mutationId,
         });
       const previousLocalId = openLocalIdRef.current;
