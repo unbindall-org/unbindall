@@ -99,7 +99,10 @@ export function CommunityNewPost({
         visibility,
         files: payload as never,
       });
-      await queryClient.invalidateQueries({ queryKey: trpc.community.myPosts.queryKey() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: trpc.community.myPosts.queryKey() }),
+        queryClient.invalidateQueries({ queryKey: trpc.community.feed.queryKey() }),
+      ]);
       if (result.findings.length) {
         setFindings(result.findings.map((finding) => finding.message));
         toast.warning(t("Veröffentlicht. Die Moderation prüft den Beitrag zusätzlich."));

@@ -74,6 +74,7 @@ export function ModerationPage({ onOpenPost }: { onOpenPost(slug: string): void 
       queryClient.invalidateQueries({ queryKey: trpc.moderation.queue.queryKey() }),
       queryClient.invalidateQueries({ queryKey: trpc.moderation.stats.queryKey() }),
       queryClient.invalidateQueries({ queryKey: trpc.moderation.history.queryKey() }),
+      queryClient.invalidateQueries({ queryKey: trpc.community.feed.queryKey() }),
       selectedId
         ? queryClient.invalidateQueries({ queryKey: trpc.moderation.report.queryKey({ id: selectedId }) })
         : Promise.resolve(),

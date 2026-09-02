@@ -30,7 +30,10 @@ export function CommunityMyPosts({
   async function withdraw(id: string) {
     try {
       await unpublish.mutateAsync({ id });
-      await queryClient.invalidateQueries({ queryKey: trpc.community.myPosts.queryKey() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: trpc.community.myPosts.queryKey() }),
+        queryClient.invalidateQueries({ queryKey: trpc.community.feed.queryKey() }),
+      ]);
       toast.success(t("Beitrag zurückgezogen."));
     } catch (error) {
       toast.error(error instanceof Error ? t(error.message) : t("Beitrag konnte nicht zurückgezogen werden."));
