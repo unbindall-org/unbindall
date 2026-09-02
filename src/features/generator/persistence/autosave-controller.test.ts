@@ -97,6 +97,39 @@ describe("autosave controller", () => {
     controller.stop();
   });
 
+  it("coalesces slider movement into one queued autosave on pointer release", async () => {
+    const store = cloudStore();
+    const repository = {
+      put: vi.fn(async () => undefined),
+      get: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+    };
+    const api = { autosave: vi.fn() };
+    const time = harness();
+    const controller = createAutosaveController({
+      store,
+      api,
+      repository,
+      serialize: () => "cfg",
+      runtime: time.runtime,
+    });
+
+    store.getState().setSliderActive(true);
+    store.getState().updateCommand("sensitivity", 1.1);
+    store.getState().updateCommand("sensitivity", 1.2);
+    store.getState().updateCommand("sensitivity", 1.3);
+    await flush();
+
+    expect(repository.put).not.toHaveBeenCalled();
+    expect(time.timerCount()).toBe(0);
+
+    store.getState().setSliderActive(false);
+    await flush();
+    expect(repository.put).toHaveBeenCalledOnce();
+    expect(time.timerCount()).toBe(1);
+    controller.stop();
+  });
+
   it("keeps an offline edit queued and retries the same mutation online", async () => {
     const store = cloudStore();
     let queued: PendingAutosave | undefined;

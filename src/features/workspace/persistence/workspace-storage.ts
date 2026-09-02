@@ -11,6 +11,7 @@ import {
 import type { WorkspaceState, WorkspaceStoreApi } from "../state/workspace-store";
 
 const WORKSPACE_KEY = "unbindall:workspace";
+const PERSIST_DELAY_MS = 250;
 
 export type WorkspaceStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -85,7 +86,18 @@ export function hydrateWorkspaceStore(store: WorkspaceStoreApi, storage: Workspa
 }
 
 export function startWorkspacePersistence(store: WorkspaceStoreApi, storage: WorkspaceStorage) {
-  return store.subscribe((state, previous) => {
+  let pending: WorkspaceState | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  function flush() {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    if (!pending) return;
+    writeWorkspace(storage, pending);
+    pending = null;
+  }
+
+  const unsubscribe = store.subscribe((state, previous) => {
     if (!state.hydrated) return;
     if (
       state.projects === previous.projects &&
@@ -93,8 +105,22 @@ export function startWorkspacePersistence(store: WorkspaceStoreApi, storage: Wor
       state.tabs === previous.tabs &&
       state.activeTabId === previous.activeTabId
     ) return;
-    writeWorkspace(storage, state);
+    pending = state;
+    if (timer !== null) clearTimeout(timer);
+    // A local edit may update a document dozens of times per second. Persist
+    // the latest workspace snapshot once after the burst instead of blocking
+    // every input event with a full synchronous serialization.
+    timer = setTimeout(flush, PERSIST_DELAY_MS);
   });
+
+  const onPageHide = () => flush();
+  if (typeof window !== "undefined") window.addEventListener("pagehide", onPageHide);
+
+  return () => {
+    unsubscribe();
+    if (typeof window !== "undefined") window.removeEventListener("pagehide", onPageHide);
+    flush();
+  };
 }
 
 export const workspaceStorageKey = WORKSPACE_KEY;

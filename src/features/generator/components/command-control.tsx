@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { isCommandEditable, type CommandDefinition, type ConfigState } from "../catalog/commands";
 
-export function CommandControl({
+function CommandControlComponent({
   command,
   state,
   onChange,
@@ -25,7 +26,6 @@ export function CommandControl({
 
   function setValue(next: string | number | boolean) {
     onChange(command.name, next);
-    if (!enabled) onChange(`enabled:${command.name}`, true);
   }
 
   return (
@@ -99,3 +99,13 @@ export function CommandControl({
     </div>
   );
 }
+
+/**
+ * A document update creates a new commandValues object. Most cards do not use
+ * the changed entry, so compare the two values this card actually renders.
+ */
+export const CommandControl = memo(CommandControlComponent, (previous, next) =>
+  previous.command === next.command &&
+  previous.onChange === next.onChange &&
+  previous.state[previous.command.name] === next.state[next.command.name] &&
+  previous.state[`enabled:${previous.command.name}`] === next.state[`enabled:${next.command.name}`]);

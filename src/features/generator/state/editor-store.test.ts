@@ -36,6 +36,21 @@ describe("generator editor store", () => {
     expect(store.getState().sync).toEqual({ status: "local" });
   });
 
+  it("updates and activates a command in one document transaction", () => {
+    const store = createGeneratorEditorStore({ hydration: "ready", sync: { status: "local" } });
+    let documentUpdates = 0;
+    const unsubscribe = store.subscribe((state, previous) => {
+      if (state.document !== previous.document) documentUpdates += 1;
+    });
+
+    store.getState().updateCommand("sensitivity", 1.6);
+
+    expect(store.getState().document.commandValues.sensitivity).toBe(1.6);
+    expect(store.getState().document.commandValues["enabled:sensitivity"]).toBe(true);
+    expect(documentUpdates).toBe(1);
+    unsubscribe();
+  });
+
   it("only enables cloud sync after the remembered config was validated", () => {
     const document = createDefaultDocument();
     const fingerprint = editorFingerprint("Remembered", document);

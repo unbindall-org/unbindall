@@ -52,9 +52,13 @@ export function autosaveErrorCode(error: unknown) {
 function autosaveCandidateKey(state: GeneratorEditorStore) {
   if (state.hydration !== "ready" || state.origin.type !== "cloud" || !state.origin.validated) return null;
   if (state.sync.status === "conflict") return null;
+  // Slider input can fire for every pointer movement. The draft layer keeps
+  // that work recoverable; defer fingerprinting and IndexedDB writes until the
+  // pointer is released and one final value remains.
+  if (state.sliderActive) return null;
   const fingerprint = editorFingerprint(state.name, state.document);
   if (fingerprint === state.origin.lastSyncedFingerprint) return null;
-  return `${state.origin.configId}:${state.origin.revision}:${Number(state.sliderActive)}:${fingerprint}`;
+  return `${state.origin.configId}:${state.origin.revision}:${fingerprint}`;
 }
 
 export function createAutosaveController(options: AutosaveControllerOptions) {

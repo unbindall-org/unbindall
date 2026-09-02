@@ -3,6 +3,7 @@ import type { GeneratorEditorState, GeneratorEditorStoreApi, HydratedDraft } fro
 
 const DRAFT_KEY = "unbindall:draft";
 const META_KEY = "unbindall:draft-meta";
+const PERSIST_DELAY_MS = 250;
 
 export type DraftStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -68,11 +69,35 @@ export function hydrateDraftStore(store: GeneratorEditorStoreApi, storage: Draft
 }
 
 export function startDraftPersistence(store: GeneratorEditorStoreApi, storage: DraftStorage) {
-  return store.subscribe((state, previous) => {
+  let pending: GeneratorEditorState | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  function flush() {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    if (!pending) return;
+    writeDraft(storage, pending);
+    pending = null;
+  }
+
+  const unsubscribe = store.subscribe((state, previous) => {
     if (state.hydration !== "ready") return;
     if (state.document === previous.document && state.name === previous.name && state.origin === previous.origin) return;
-    writeDraft(storage, state);
+    pending = state;
+    if (timer !== null) clearTimeout(timer);
+    // localStorage and JSON.stringify are synchronous. Coalesce rapid slider
+    // and text events so they cannot monopolize the interaction frame.
+    timer = setTimeout(flush, PERSIST_DELAY_MS);
   });
+
+  const onPageHide = () => flush();
+  if (typeof window !== "undefined") window.addEventListener("pagehide", onPageHide);
+
+  return () => {
+    unsubscribe();
+    if (typeof window !== "undefined") window.removeEventListener("pagehide", onPageHide);
+    flush();
+  };
 }
 
 export const draftStorageKeys = { document: DRAFT_KEY, metadata: META_KEY } as const;

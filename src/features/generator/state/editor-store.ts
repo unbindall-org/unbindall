@@ -146,10 +146,18 @@ export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorStat
 
     updateCommand(name, value) {
       set((state) => {
-        const commandName = name.startsWith("enabled:") ? name.slice("enabled:".length) : name;
+        const isEnabledToggle = name.startsWith("enabled:");
+        const commandName = isEnabledToggle ? name.slice("enabled:".length) : name;
         const command = state.catalog.find((item) => item.name === commandName);
         if (!command || !isCommandEditable(command)) return state;
-        const commandValues = { ...state.document.commandValues, [name]: value };
+        // Value edits always activate the command. Keeping this in one store
+        // transaction avoids two complete editor renders for the first slider,
+        // text, select, or switch interaction on an inactive command.
+        const commandValues = {
+          ...state.document.commandValues,
+          [name]: value,
+          ...(!isEnabledToggle ? { [`enabled:${commandName}`]: true } : {}),
+        };
         if (name === "cl_crosshaircolor" && Number(value) === 5) {
           commandValues["enabled:cl_crosshaircolor_r"] = true;
           commandValues["enabled:cl_crosshaircolor_g"] = true;
