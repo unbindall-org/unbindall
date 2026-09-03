@@ -96,10 +96,9 @@ export function editorFingerprint(name: string, document: GeneratorDocument) {
 }
 
 function editedSyncState(state: GeneratorEditorState): SyncState {
-  if (state.origin.type !== "cloud") return { status: "local" };
-  if (state.sync.status === "conflict") return state.sync;
-  const dirtySince = state.sync.status === "dirty" ? state.sync.dirtySince : Date.now();
-  return { status: "dirty", dirtySince };
+  if (state.origin.type !== "cloud") return state.sync.status === "local" ? state.sync : { status: "local" };
+  if (state.sync.status === "conflict" || state.sync.status === "dirty") return state.sync;
+  return { status: "dirty", dirtySince: Date.now() };
 }
 
 export function createGeneratorEditorStore(initial?: Partial<GeneratorEditorState>, commandCatalog: CommandDefinition[] = commands) {

@@ -62,19 +62,20 @@ export function GeneratorWorkspace({
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = deferredQuery.trim().toLowerCase();
   const activeOnly = !showAllCommands;
-  const definition = getConfigTypeDefinition(document.configType);
-  const TypeIcon = configTypeIcons[document.configType];
+  const { commandValues, configType, customBinds, multiBinds, standardBinds } = document;
+  const definition = getConfigTypeDefinition(configType);
+  const TypeIcon = configTypeIcons[configType];
   const enabledSignature = commands
-    .map((command) => document.commandValues[`enabled:${command.name}`] ? "1" : "0")
+    .map((command) => commandValues[`enabled:${command.name}`] ? "1" : "0")
     .join("");
   const enabledCommands = useMemo(() => new Set(commands
     .filter((_, index) => enabledSignature[index] === "1")
     .map((command) => command.name)), [commands, enabledSignature]);
   const resolvedBindings = useMemo(() => resolveBindings({
-    standardBinds: document.standardBinds,
-    multiBinds: document.multiBinds,
-    customBinds: document.customBinds,
-  }), [document.customBinds, document.multiBinds, document.standardBinds]);
+    standardBinds,
+    multiBinds,
+    customBinds,
+  }), [customBinds, multiBinds, standardBinds]);
 
   const { activeCount, commandsByModule, outlineEntries, visibleModules } = useMemo(() => {
     const commandMatches = (command: CommandDefinition) =>
@@ -87,7 +88,7 @@ export function GeneratorWorkspace({
       if (generatorModule.kind !== "settings") continue;
       commandsByModule.set(generatorModule.id, commands.filter((command) =>
         command.category === generatorModule.id &&
-        isCommandAvailable(document.configType, command) &&
+        isCommandAvailable(configType, command) &&
         (!activeOnly || enabledCommands.has(command.name)) &&
         (!normalizedQuery || commandMatches(command))));
     }
@@ -95,24 +96,24 @@ export function GeneratorWorkspace({
     const itemCount = (module: GeneratorModule, enabledOnly: boolean) => {
       if (module.kind === "settings") {
         return commands.filter((command) => command.category === module.id &&
-          isCommandAvailable(document.configType, command) &&
+          isCommandAvailable(configType, command) &&
           (!enabledOnly || enabledCommands.has(command.name))).length;
       }
       if (module.kind === "standard-binds") {
-        return document.standardBinds.filter((binding) => !enabledOnly || binding.enabled).length;
+        return standardBinds.filter((binding) => !enabledOnly || binding.enabled).length;
       }
       if (module.kind === "multi-binds") {
-        return document.multiBinds.filter((binding) => !enabledOnly || binding.enabled).length;
+        return multiBinds.filter((binding) => !enabledOnly || binding.enabled).length;
       }
-      return document.customBinds.filter((binding) => !enabledOnly || binding.enabled).length;
+      return customBinds.filter((binding) => !enabledOnly || binding.enabled).length;
     };
 
     const moduleHasItemMatch = (module: GeneratorModule) => {
       if (module.kind === "standard-binds") return resolvedBindings.some((binding) =>
         binding.source === "standard" && `${binding.label} ${t(binding.label)} ${binding.command} ${binding.key}`.toLowerCase().includes(normalizedQuery));
-      if (module.kind === "multi-binds") return document.multiBinds.some((binding) =>
+      if (module.kind === "multi-binds") return multiBinds.some((binding) =>
         (!activeOnly || binding.enabled) && `${binding.label} ${t(binding.label)} ${binding.keys.join(" ")}`.toLowerCase().includes(normalizedQuery));
-      if (module.kind === "custom-binds") return document.customBinds.some((binding) =>
+      if (module.kind === "custom-binds") return customBinds.some((binding) =>
         (!activeOnly || binding.enabled) && `${binding.label} ${t(binding.label)} ${binding.command} ${binding.key}`.toLowerCase().includes(normalizedQuery));
       return false;
     };
@@ -139,7 +140,7 @@ export function GeneratorWorkspace({
       outlineEntries,
       visibleModules,
     };
-  }, [activeOnly, commands, document, enabledCommands, modules, normalizedQuery, resolvedBindings, t]);
+  }, [activeOnly, commands, configType, customBinds, enabledCommands, modules, multiBinds, normalizedQuery, resolvedBindings, standardBinds, t]);
 
   return (
     <div className="editor">

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createDefaultDocument } from "../domain/document";
 import { createGeneratorEditorStore, editorFingerprint } from "../state/editor-store";
 import { draftStorageKeys, hydrateDraftStore, readDraft, startDraftPersistence, writeDraft } from "./draft-store";
@@ -63,5 +63,29 @@ describe("draft persistence", () => {
     stop();
 
     expect(JSON.parse(storage.values.get(draftStorageKeys.metadata)!)).toMatchObject({ name: "Changed" });
+  });
+
+  it("does not synchronously serialize intermediate slider values", () => {
+    vi.useFakeTimers();
+    try {
+      const storage = memoryStorage();
+      const store = createGeneratorEditorStore();
+      hydrateDraftStore(store, storage, false);
+      const stop = startDraftPersistence(store, storage);
+
+      store.getState().setSliderActive(true);
+      store.getState().updateCommand("sensitivity", 1.1);
+      store.getState().updateCommand("sensitivity", 1.2);
+      store.getState().updateCommand("sensitivity", 1.3);
+      vi.advanceTimersByTime(1_000);
+      expect(storage.values.has(draftStorageKeys.document)).toBe(false);
+
+      store.getState().setSliderActive(false);
+      vi.advanceTimersByTime(250);
+      expect(JSON.parse(storage.values.get(draftStorageKeys.document)!).commandValues.sensitivity).toBe(1.3);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

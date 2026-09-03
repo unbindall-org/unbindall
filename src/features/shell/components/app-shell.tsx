@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { inferRouterOutputs } from "@trpc/server";
 import { CircleAlert, LoaderCircle } from "lucide-react";
@@ -127,6 +127,53 @@ export function AppShell(props: ShellProps) {
   );
 }
 
+type ConnectedGeneratorWorkspaceProps = Omit<ComponentProps<typeof GeneratorWorkspace>,
+  | "document"
+  | "configName"
+  | "query"
+  | "showAllCommands"
+  | "onQueryChange"
+  | "onShowAllCommandsChange"
+  | "onNameChange"
+  | "onCommandChange"
+  | "onDocumentChange"
+>;
+
+/**
+ * Owns the editor's high-frequency subscription. Keeping it below the shell
+ * boundary means a slider movement cannot re-render tabs, explorers, dialogs,
+ * or whichever other workspace pages happen to be mounted around it.
+ */
+function ConnectedGeneratorWorkspace({ commands, modules, ...props }: ConnectedGeneratorWorkspaceProps) {
+  const document = useGeneratorEditorStore((state) => state.document);
+  const configName = useGeneratorEditorStore((state) => state.name);
+  const query = useGeneratorEditorStore((state) => state.query);
+  const showAllCommands = useGeneratorEditorStore((state) => state.showAllCommands);
+  const onQueryChange = useGeneratorEditorStore((state) => state.setQuery);
+  const onShowAllCommandsChange = useGeneratorEditorStore((state) => state.setShowAllCommands);
+  const onNameChange = useGeneratorEditorStore((state) => state.setName);
+  const onCommandChange = useGeneratorEditorStore((state) => state.updateCommand);
+  const onDocumentChange = useGeneratorEditorStore((state) => state.replaceDocument);
+  const availableModules = useMemo(() => modules.filter((module) => module.kind === "settings"
+    ? commands.some((command) => command.category === module.id && isCommandAvailable(document.configType, command))
+    : configTypeUsesBinds(document.configType)), [commands, document.configType, modules]);
+
+  return <GeneratorWorkspace
+    {...props}
+    document={document}
+    configName={configName}
+    query={query}
+    showAllCommands={showAllCommands}
+    commands={commands}
+    modules={availableModules}
+    onQueryChange={onQueryChange}
+    onShowAllCommandsChange={onShowAllCommandsChange}
+    onNameChange={onNameChange}
+    onCommandChange={onCommandChange}
+    onDocumentChange={onDocumentChange}
+  />;
+}
+
 function AppShellContent({
   user,
   authProviders,
@@ -147,30 +194,30 @@ function AppShellContent({
   const canModerate = Boolean(user && hasRole(user.role, "moderator"));
   const canAdminister = Boolean(user && hasRole(user.role, "platform_admin"));
 
-  const generatorDocument = useGeneratorEditorStore((state) => state.document);
-  const editorCatalog = useGeneratorEditorStore((state) => state.catalog);
   const configName = useGeneratorEditorStore((state) => state.name);
   const origin = useGeneratorEditorStore((state) => state.origin);
   const sync = useGeneratorEditorStore((state) => state.sync);
   const hydration = useGeneratorEditorStore((state) => state.hydration);
-  const query = useGeneratorEditorStore((state) => state.query);
   const showAllCommands = useGeneratorEditorStore((state) => state.showAllCommands);
-  const replaceDocument = useGeneratorEditorStore((state) => state.replaceDocument);
-  const updateCommand = useGeneratorEditorStore((state) => state.updateCommand);
   const setConfigName = useGeneratorEditorStore((state) => state.setName);
-  const setQuery = useGeneratorEditorStore((state) => state.setQuery);
   const setShowAllCommands = useGeneratorEditorStore((state) => state.setShowAllCommands);
   const setSliderActive = useGeneratorEditorStore((state) => state.setSliderActive);
   const configDefinition = useGeneratorEditorStore(selectConfigDefinition);
-  const enabledCount = useGeneratorEditorStore(selectEnabledCount);
-  // Config rendering is useful for secondary status and dialogs, but it should
-  // not compete with the urgent pointer update that is moving a slider.
-  const deferredGeneratorDocument = useDeferredValue(generatorDocument);
+  // These metrics are consumed by dialogs. Reading the snapshot keeps the
+  // whole shell out of the high-frequency document subscription; opening a
+  // dialog already causes a render and therefore reads the latest values.
+  const editorSnapshot = editorStore.getState();
+  const snapshotCatalog = editorSnapshot.catalog;
+  const snapshotDocument = editorSnapshot.document;
   const rawConfig = useMemo(
-    () => serializeConfig(deferredGeneratorDocument, editorLocale, editorCatalog),
-    [deferredGeneratorDocument, editorCatalog, editorLocale],
+    () => serializeConfig(snapshotDocument, editorLocale, snapshotCatalog),
+    [editorLocale, snapshotCatalog, snapshotDocument],
   );
-  const lineCount = useMemo(() => rawConfig ? rawConfig.split("\n").length : 0, [rawConfig]);
+  const enabledCount = useMemo(
+    () => selectEnabledCount(editorSnapshot),
+    [editorSnapshot],
+  );
+  const lineCount = rawConfig ? rawConfig.split("\n").length : 0;
 
   const workspaceHydrated = useWorkspaceStore((state) => state.hydrated);
   const localProjects = useWorkspaceStore((state) => state.projects);
@@ -432,10 +479,14 @@ function AppShellContent({
     const unsubscribe = editorStore.subscribe((state, previous) => {
       const localId = openLocalIdRef.current;
       if (!localId || state.hydration !== "ready") return;
-      if (state.document === previous.document && state.name === previous.name) return;
       if (state.origin.type === "cloud") return;
-      pending = { localId, name: state.name, document: state.document };
+      if (state.document !== previous.document || state.name !== previous.name) {
+        pending = { localId, name: state.name, document: state.document };
+      }
+      if (!pending) return;
       if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      if (state.sliderActive) return;
       timer = window.setTimeout(flush, 250);
     });
 
@@ -510,12 +561,6 @@ function AppShellContent({
     ]);
   }, [queryClient, trpc.config.list]);
 
-  const deferredConfigName = useDeferredValue(configName);
-  const documentFingerprint = useMemo(
-    () => editorFingerprint(deferredConfigName, deferredGeneratorDocument),
-    [deferredConfigName, deferredGeneratorDocument],
-  );
-
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get("authError") === "steam") {
@@ -526,24 +571,35 @@ function AppShellContent({
   }, [t]);
 
   useEffect(() => {
-    if (!configsQuery.data || hydration !== "ready" || !currentId || origin.type !== "cloud") return;
-    const current = configsQuery.data.find((config) => config.id === currentId);
-    if (!current) {
-      editorStore.getState().detachCloud();
-      return;
+    const configs = configsQuery.data;
+    if (!configs) return;
+
+    function reconcile() {
+      const state = editorStore.getState();
+      const origin = state.origin;
+      if (state.hydration !== "ready" || origin.type !== "cloud") return;
+      const cloud = configs.find((config) => config.id === origin.configId);
+      if (!cloud) {
+        state.detachCloud();
+        return;
+      }
+      if (cloud.revision < origin.revision) return;
+      if (cloud.revision === origin.revision) {
+        state.validateCloudOrigin(cloud.revision);
+        return;
+      }
+      const fingerprint = editorFingerprint(state.name, state.document);
+      if (fingerprint === origin.lastSyncedFingerprint) {
+        void queryClient.fetchQuery(trpc.config.get.queryOptions({ id: cloud.id })).then((loaded) => {
+          editorStore.getState().loadCloudConfig(loaded);
+        }).catch(() => editorStore.getState().autosaveFailed("cloud-reconcile"));
+        return;
+      }
+      state.autosaveFailed("cloud-reconcile", "CONFLICT", cloud.revision);
     }
-    if (current.revision > origin.revision && documentFingerprint === origin.lastSyncedFingerprint) {
-      void queryClient.fetchQuery(trpc.config.get.queryOptions({ id: current.id })).then((loaded) => {
-        editorStore.getState().loadCloudConfig(loaded);
-      }).catch(() => editorStore.getState().autosaveFailed("cloud-reconcile"));
-      return;
-    }
-    if (current.revision > origin.revision && documentFingerprint !== origin.lastSyncedFingerprint) {
-      editorStore.getState().autosaveFailed("cloud-reconcile", "CONFLICT", current.revision);
-      return;
-    }
-    editorStore.getState().validateCloudOrigin(current.revision);
-  }, [configsQuery.data, currentId, documentFingerprint, editorStore, hydration, origin, queryClient, trpc.config.get]);
+
+    reconcile();
+  }, [configsQuery.data, editorStore, hydration, origin, queryClient, trpc.config.get]);
 
   useEffect(() => {
     if (configsQuery.error) toast.error(t(configsQuery.error.message));
@@ -591,10 +647,10 @@ function AppShellContent({
     description: t(module.description),
     searchableText: `${module.searchableText} ${t(module.label)} ${t(module.shortLabel)} ${t(module.description)} ${bindActions.map((action) => `${t(action.label)} ${t(action.group)}`).join(" ")}`.toLowerCase(),
   })), [localizedCommands, t]);
-  const availableModules = useMemo(() => localizedModules.filter((module) => module.kind === "settings"
-    ? editorCommands.some((command) => command.category === module.id && isCommandAvailable(generatorDocument.configType, command))
-    : configTypeUsesBinds(generatorDocument.configType)), [editorCommands, generatorDocument.configType, localizedModules]);
-  const conflictingKeys = useMemo(() => findBindingConflicts(generatorDocument), [generatorDocument]);
+  const conflictingKeys = useMemo(
+    () => findBindingConflicts(snapshotDocument),
+    [snapshotDocument],
+  );
 
   useEffect(() => {
     editorStore.getState().replaceCatalog(localizedCommands);
@@ -785,14 +841,14 @@ function AppShellContent({
   }
 
   async function copyConfig() {
-    await navigator.clipboard.writeText(serializeConfig(generatorDocument, editorLocale, localizedCommands));
+    await navigator.clipboard.writeText(serializeConfig(editorStore.getState().document, editorLocale, localizedCommands));
     setCopied(true);
     toast.success(t(configDefinition.outputKind === "launch-options" ? "Launch Options kopiert." : "Config kopiert."));
     window.setTimeout(() => setCopied(false), 1800);
   }
 
   function downloadConfig() {
-    const source = serializeConfig(generatorDocument, editorLocale, localizedCommands);
+    const source = serializeConfig(editorStore.getState().document, editorLocale, localizedCommands);
     const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -815,7 +871,7 @@ function AppShellContent({
       : t("Importierte Config");
     const document = parseConfigFiles(
       imports,
-      activeConfigId ? generatorDocument : createDefaultDocument("matchmaking", localizedCommands),
+      activeConfigId ? editorStore.getState().document : createDefaultDocument("matchmaking", localizedCommands),
       localizedCommands,
     );
 
@@ -846,7 +902,8 @@ function AppShellContent({
     event.preventDefault();
     try {
       const mutationId = crypto.randomUUID();
-      const currentRawConfig = serializeConfig(generatorDocument, editorLocale, localizedCommands);
+      const document = editorStore.getState().document;
+      const currentRawConfig = serializeConfig(document, editorLocale, localizedCommands);
       const saved = currentId
         ? await saveConfigMutation.mutateAsync({
           id: currentId,
@@ -854,13 +911,13 @@ function AppShellContent({
           mutationId,
           checkpointLabel: checkpointLabel.trim() || undefined,
           name: configName,
-          values: generatorDocument,
+          values: document,
           rawConfig: currentRawConfig,
         })
         : await createConfigMutation.mutateAsync({
           name: configName,
-          configType: generatorDocument.configType,
-          values: generatorDocument,
+          configType: document.configType,
+          values: document,
           rawConfig: currentRawConfig,
           mutationId,
         });
@@ -893,7 +950,7 @@ function AppShellContent({
         (configs ?? []).filter((item) => item.id !== id));
       await queryClient.invalidateQueries({ queryKey: trpc.config.trash.queryKey() });
       workspaceStore.getState().closeTab(`config:${id}`);
-      if (currentId === id) editorStore.getState().detachCloud(t(defaultConfigName(generatorDocument.configType)));
+      if (currentId === id) editorStore.getState().detachCloud(t(defaultConfigName(editorStore.getState().document.configType)));
       setDeleteCandidate(null);
       toast.success(t("Config gelöscht."));
     } catch (error) {
@@ -966,8 +1023,8 @@ function AppShellContent({
   }
 
   function resetDocument() {
-    const document = createDefaultDocument(generatorDocument.configType, localizedCommands);
-    replaceDocument(document);
+    const document = createDefaultDocument(editorStore.getState().document.configType, localizedCommands);
+    editorStore.getState().replaceDocument(document);
     toast.success(t("Standardwerte wiederhergestellt."));
   }
 
@@ -1065,7 +1122,7 @@ function AppShellContent({
 
   function adoptParts(document: GeneratorDocument) {
     if (!adoptTarget) return;
-    replaceDocument(document);
+    editorStore.getState().replaceDocument(document);
     countAdoption(adoptTarget.post);
     setAdoptTarget(null);
     toast.success(t("Teile übernommen. Prüfe die Änderungen, bevor du speicherst."));
@@ -1247,20 +1304,11 @@ function AppShellContent({
           );
         }
         return (
-          <GeneratorWorkspace
-            document={generatorDocument}
-            configName={configName}
-            query={query}
-            showAllCommands={showAllCommands}
+          <ConnectedGeneratorWorkspace
             commands={editorCommands}
-            modules={availableModules}
+            modules={localizedModules}
             importRef={importRef}
             searchRef={searchRef}
-            onQueryChange={setQuery}
-            onShowAllCommandsChange={setShowAllCommands}
-            onNameChange={setConfigName}
-            onCommandChange={updateCommand}
-            onDocumentChange={replaceDocument}
             onReset={resetDocument}
             onCreateCheckpoint={requestSave}
             canCheckpoint={signedIn && Boolean(currentId)}
@@ -1426,7 +1474,7 @@ function AppShellContent({
         files={adoptTarget?.files ?? []}
         projects={projects}
         mergeTarget={activeConfigId && activeConfigReady
-          ? { name: configName, document: generatorDocument }
+          ? { name: configName, document: snapshotDocument }
           : null}
         catalog={localizedCommands}
         pending={adoptPending}

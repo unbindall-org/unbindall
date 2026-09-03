@@ -82,9 +82,12 @@ export function startDraftPersistence(store: GeneratorEditorStoreApi, storage: D
 
   const unsubscribe = store.subscribe((state, previous) => {
     if (state.hydration !== "ready") return;
-    if (state.document === previous.document && state.name === previous.name && state.origin === previous.origin) return;
-    pending = state;
+    const contentChanged = state.document !== previous.document || state.name !== previous.name || state.origin !== previous.origin;
+    if (contentChanged) pending = state;
+    if (!pending) return;
     if (timer !== null) clearTimeout(timer);
+    timer = null;
+    if (state.sliderActive) return;
     // localStorage and JSON.stringify are synchronous. Coalesce rapid slider
     // and text events so they cannot monopolize the interaction frame.
     timer = setTimeout(flush, PERSIST_DELAY_MS);

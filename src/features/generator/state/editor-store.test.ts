@@ -51,6 +51,20 @@ describe("generator editor store", () => {
     unsubscribe();
   });
 
+  it("keeps an already-settled sync slice referentially stable across rapid edits", () => {
+    const store = createGeneratorEditorStore({ hydration: "ready", sync: { status: "local" } });
+    const localSync = store.getState().sync;
+    store.getState().updateCommand("sensitivity", 1.1);
+    store.getState().updateCommand("sensitivity", 1.2);
+    expect(store.getState().sync).toBe(localSync);
+
+    store.getState().loadCloudConfig(cloudConfig());
+    store.getState().updateCommand("sensitivity", 1.3);
+    const dirtySync = store.getState().sync;
+    store.getState().updateCommand("sensitivity", 1.4);
+    expect(store.getState().sync).toBe(dirtySync);
+  });
+
   it("only enables cloud sync after the remembered config was validated", () => {
     const document = createDefaultDocument();
     const fingerprint = editorFingerprint("Remembered", document);
