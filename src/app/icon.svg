@@ -8,8 +8,8 @@
     }
   </style>
   <rect class="tile" x="6" y="6" width="52" height="52" rx="16"/>
-  <g transform="translate(14.59 13.28) scale(1.0062)">
-    <path class="mark" fill="none" stroke-width="5" stroke-linecap="round"
-          d="M14.2082 2.50011C14.2082 2.50011 31.5 24.5001 32 25.0001C32.5 25.5001 7.20823 8.50011 7.20823 8.50011C3.5 6.50011 2.5 17.3075 2.5 20.9551C2.5 24.6027 3.949 28.1009 6.52823 30.6801C9.10746 33.2593 12.6056 34.7083 16.2532 34.7083C19.9008 34.7083 6 17.0001 9.5 19.0001L26.7082 30.0001"/>
+  <g transform="translate(8.96 8.96) scale(.72)">
+    <path class="mark" d="M15.5 9.5V35.5C15.5 46 22.9 54.5 32 54.5S48.5 46 48.5 35.5V9.5"
+          fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>

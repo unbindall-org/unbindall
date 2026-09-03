@@ -23,22 +23,23 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const source = readFileSync(resolve(root, "src/components/logo.tsx"), "utf8");
 const mark = source.match(/export const MARK =\s*"([^"]+)"/)?.[1];
-if (!mark) throw new Error("MARK nicht in src/components/logo.tsx gefunden");
+const strokeWidth = Number(source.match(/export const MARK_STROKE_WIDTH = (\d+(?:\.\d+)?)/)?.[1]);
+if (!mark || !strokeWidth) throw new Error("MARK nicht in src/components/logo.tsx gefunden");
 
 const INK = "#1d1a17";
 const PAPER = "#f7f5f2";
 
-/** Tuschefläche des Zugs inklusive runder Enden, im 35×38-Zeichenraster. */
-const ART = { w: 34.6, h: 37.21 };
+/** Tuschefläche des U inklusive runder Enden, im 64er-Zeichenraster. */
+const ART = { x: 12, y: 6, w: 40, h: 52 };
 
 /** Marke mittig in eine quadratische Kachel, auf 72 % ihrer Kantenlänge. */
 function placed(x, y, size, color) {
   const h = size * 0.72;
   const s = h / ART.h;
-  const tx = x + (size - ART.w * s) / 2;
-  const ty = y + (size - h) / 2;
+  const tx = x + (size - ART.w * s) / 2 - ART.x * s;
+  const ty = y + (size - h) / 2 - ART.y * s;
   return `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(4)})">
-    <path d="${mark}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"/>
+    <path d="${mark}" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>
   </g>`;
 }
 
