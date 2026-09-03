@@ -71,4 +71,28 @@ describe("production environment validation", () => {
       DATABASE_URL: "postgresql://prod:prod@db:5432/production",
     })).toThrow(/gepoolten/);
   });
+
+  it("permits the documented loopback-only Docker quick start", () => {
+    const localDockerEnvironment: NodeJS.ProcessEnv = {
+      NODE_ENV: "production",
+      UNBINDALL_LOCAL_DOCKER: "true",
+      AUTH_SECRET: "unbindall-local-docker-only-secret-do-not-use-in-production",
+      AUTH_URL: "http://localhost:3000",
+      AUTH_EXPECTED_HOST: "localhost",
+      AUTH_TRUST_HOST: "true",
+      TRUSTED_PROXY_COUNT: "1",
+      DATABASE_URL: "postgresql://unbindall:unbindall-local-only@db:5432/unbindall",
+      REDIS_URL: "redis://redis:6379",
+    };
+
+    expect(() => validateProductionEnvironment(localDockerEnvironment)).not.toThrow();
+    expect(() => validateProductionEnvironment({
+      ...localDockerEnvironment,
+      UNBINDALL_LOCAL_DOCKER: undefined,
+    })).toThrow(/AUTH_SECRET[\s\S]*AUTH_URL[\s\S]*gepoolten[\s\S]*TLS/);
+    expect(() => validateProductionEnvironment({
+      ...localDockerEnvironment,
+      DATABASE_URL: "postgresql://unbindall:unbindall-local-only@db:5432/production",
+    })).toThrow(/gepoolten/);
+  });
 });

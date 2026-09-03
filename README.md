@@ -29,7 +29,42 @@ A responsive Next.js generator for Counter-Strike 2 autoexec files. Settings are
 - Drizzle schema and versioned SQL migrations
 - responsive desktop and mobile UI in English and German
 
-## Local setup
+## Quick start with Docker
+
+The quickest way to try the complete application requires only Docker with Docker Compose. PostgreSQL, Redis, database migrations, and the Next.js app all start locally; no Neon, Discord, or Steam account is required.
+
+1. Clone the repository and enter it:
+
+   ```bash
+   git clone https://github.com/unbindall-org/unbindall.git
+   cd unbindall
+   ```
+
+2. Copy the ready-to-run local environment file:
+
+   ```bash
+   cp .env.docker.example .env.docker
+   ```
+
+3. Build and start the complete stack with one command:
+
+   ```bash
+   docker compose --env-file .env.docker up --build --wait
+   ```
+
+Open [http://localhost:3000](http://localhost:3000). The first build can take a few minutes; subsequent starts reuse Docker's build cache. Email/password registration works immediately. Discord and Steam sign-in stay hidden unless you add their optional credentials to `.env.docker`.
+
+Useful follow-up commands:
+
+```bash
+docker compose --env-file .env.docker logs -f app      # follow application logs
+docker compose --env-file .env.docker down             # stop the stack, keep local data
+docker compose --env-file .env.docker down --volumes   # stop and delete all local data
+```
+
+PostgreSQL and Redis are accessible only inside the Compose network, and the app port is bound to loopback. Data survives normal restarts in Docker volumes. To use a port other than `3000`, change both `APP_PORT` and the port in `AUTH_URL` inside `.env.docker`, then restart the stack.
+
+## Manual local setup
 
 Requirements: Node.js 22 or newer, pnpm, and an existing Neon project.
 

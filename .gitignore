@@ -4,6 +4,7 @@ next-env.d.ts
 .next-e2e
 .env
 .env.local
+.env.docker
 *.log
 *.tsbuildinfo
 .DS_Store

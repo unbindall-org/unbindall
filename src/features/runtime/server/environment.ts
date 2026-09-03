@@ -1,6 +1,8 @@
 const developmentAuthSecret = "local-development-secret-change-me-please";
+const localDockerAuthSecret = "unbindall-local-docker-only-secret-do-not-use-in-production";
 const insecureAuthSecrets = new Set([
   developmentAuthSecret,
+  localDockerAuthSecret,
   "replace-with-at-least-32-random-characters",
   "changeme",
 ]);
@@ -34,6 +36,23 @@ function isExplicitContainerSmokeEnvironment(env: NodeJS.ProcessEnv) {
   }
 }
 
+function isExplicitLocalDockerEnvironment(env: NodeJS.ProcessEnv) {
+  if (env.UNBINDALL_LOCAL_DOCKER !== "true") return false;
+  try {
+    const authUrl = new URL(env.AUTH_URL ?? "");
+    const databaseUrl = new URL(env.DATABASE_URL ?? "");
+    return authUrl.protocol === "http:"
+      && ["127.0.0.1", "localhost"].includes(authUrl.hostname)
+      && databaseUrl.hostname === "db"
+      && databaseUrl.pathname === "/unbindall"
+      && env.AUTH_EXPECTED_HOST === authUrl.hostname
+      && env.AUTH_TRUST_HOST === "true"
+      && env.TRUSTED_PROXY_COUNT === "1";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Validates deployment invariants without reading any module-global state. This
  * makes the same checks usable during server startup and in unit tests.
@@ -42,14 +61,17 @@ export function validateProductionEnvironment(env: NodeJS.ProcessEnv = process.e
   // `next build` statically evaluates server modules without runtime secrets.
   // The standalone server calls this again through instrumentation at startup.
   if (env.NODE_ENV !== "production" || env.NEXT_PHASE === "phase-production-build") return;
-  // The production image is also exercised against an isolated local Compose
-  // network. The exception is deliberately limited to loopback HTTP and the
-  // exact disposable database service/name used by that smoke test.
+  // Production images are also exercised on isolated local Compose networks.
+  // These exceptions are deliberately limited to loopback HTTP and exact
+  // internal database service/name combinations.
   const containerSmoke = isExplicitContainerSmokeEnvironment(env);
+  const localDocker = isExplicitLocalDockerEnvironment(env);
+  const localContainer = containerSmoke || localDocker;
 
   const errors: string[] = [];
   const secret = env.AUTH_SECRET;
-  if (!secret || secret.length < 32 || insecureAuthSecrets.has(secret)) {
+  const permittedLocalSecret = localDocker && secret === localDockerAuthSecret;
+  if (!secret || secret.length < 32 || (insecureAuthSecrets.has(secret) && !permittedLocalSecret)) {
     errors.push("AUTH_SECRET muss mindestens 32 zufällige Zeichen lang sein und darf kein Defaultwert sein.");
   }
 
@@ -57,7 +79,7 @@ export function validateProductionEnvironment(env: NodeJS.ProcessEnv = process.e
   const expectedHost = env.AUTH_EXPECTED_HOST?.trim().toLowerCase();
   if (!expectedHost && !containerSmoke) errors.push("AUTH_EXPECTED_HOST fehlt.");
   if (authUrl) {
-    if (authUrl.protocol !== "https:" && !containerSmoke) errors.push("AUTH_URL muss HTTPS verwenden.");
+    if (authUrl.protocol !== "https:" && !localContainer) errors.push("AUTH_URL muss HTTPS verwenden.");
     if (authUrl.username || authUrl.password || authUrl.pathname !== "/" || authUrl.search || authUrl.hash) {
       errors.push("AUTH_URL muss eine reine öffentliche Origin ohne Pfad, Query oder Zugangsdaten sein.");
     }
@@ -71,10 +93,10 @@ export function validateProductionEnvironment(env: NodeJS.ProcessEnv = process.e
     if (!["postgres:", "postgresql:"].includes(databaseUrl.protocol)) {
       errors.push("DATABASE_URL muss eine PostgreSQL-URL sein.");
     }
-    if (!databaseUrl.hostname.includes("-pooler") && !containerSmoke) {
+    if (!databaseUrl.hostname.includes("-pooler") && !localContainer) {
       errors.push("DATABASE_URL muss auf den gepoolten Neon-Endpunkt zeigen (Hostname mit -pooler).");
     }
-    if (!containerSmoke && !["require", "verify-ca", "verify-full"].includes(databaseUrl.searchParams.get("sslmode") ?? "")) {
+    if (!localContainer && !["require", "verify-ca", "verify-full"].includes(databaseUrl.searchParams.get("sslmode") ?? "")) {
       errors.push("DATABASE_URL muss TLS über sslmode=require oder strenger erzwingen.");
     }
   }
