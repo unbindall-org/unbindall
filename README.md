@@ -110,7 +110,7 @@ Then run:
 ```bash
 pnpm install
 pnpm db:migrate
-pnpm db:seed:community # optional: Demo-Beiträge für die Community
+pnpm db:seed:community # optional: community demo posts
 pnpm dev
 ```
 
