@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3200";
+const readinessURL = new URL("/robots.txt", baseURL).toString();
 const databaseUrl = process.env.TEST_DATABASE_URL
   ?? "postgresql://unbindall:unbindall@127.0.0.1:55432/unbindall_test";
 
@@ -22,7 +23,9 @@ export default defineConfig({
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     command: "pnpm dev --hostname 127.0.0.1 --port 3200",
-    url: baseURL,
+    // Playwright starts the web server before globalSetup migrates the test
+    // database. Probe a static route so an empty database cannot deadlock CI.
+    url: readinessURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
