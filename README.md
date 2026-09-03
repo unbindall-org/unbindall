@@ -31,7 +31,7 @@ A responsive Next.js generator for Counter-Strike 2 autoexec files. Settings are
 
 ## Quick start with Docker
 
-The quickest way to try the complete application requires only Docker with Docker Compose. PostgreSQL, Redis, database migrations, and the Next.js app all start locally; no Neon, Discord, or Steam account is required.
+The quickest way to try the complete application requires Docker with Docker Compose v2 and Bash (Linux, macOS, or WSL). PostgreSQL, Redis, database migrations, and the Next.js app all start locally; no Neon, Discord, or Steam account is required.
 
 1. Clone the repository and enter it:
 
@@ -49,20 +49,34 @@ The quickest way to try the complete application requires only Docker with Docke
 3. Build and start the complete stack with one command:
 
    ```bash
-   docker compose --env-file .env.docker up --build --wait
+   ./scripts/docker-start.sh
    ```
 
-Open [http://localhost:3000](http://localhost:3000). The first build can take a few minutes; subsequent starts reuse Docker's build cache. Email/password registration works immediately. Discord and Steam sign-in stay hidden unless you add their optional credentials to `.env.docker`.
+The launcher starts with `APP_PORT` from `.env.docker` (default: `3000`). If that port is occupied, it automatically tries `3001`, `3002`, and so on. After all containers are healthy, it prints the exact local URL to open. The first build can take a few minutes; subsequent starts reuse Docker's build cache. Email/password registration works immediately. Discord and Steam sign-in stay hidden unless you add their optional credentials to `.env.docker`.
 
-Useful follow-up commands:
+PostgreSQL and Redis are accessible only inside the Compose network, and the app port is bound to loopback. Data survives normal restarts in Docker volumes.
+
+### Stop or remove the Docker setup
+
+Run these commands from the repository directory. To stop the containers while keeping them for a quick restart:
 
 ```bash
-docker compose --env-file .env.docker logs -f app      # follow application logs
-docker compose --env-file .env.docker down             # stop the stack, keep local data
-docker compose --env-file .env.docker down --volumes   # stop and delete all local data
+docker compose --env-file .env.docker stop
 ```
 
-PostgreSQL and Redis are accessible only inside the Compose network, and the app port is bound to loopback. Data survives normal restarts in Docker volumes. To use a port other than `3000`, change both `APP_PORT` and the port in `AUTH_URL` inside `.env.docker`, then restart the stack.
+To remove the containers and Compose network but keep the PostgreSQL and Redis data:
+
+```bash
+docker compose --env-file .env.docker down --remove-orphans
+```
+
+To remove everything created specifically for this stack, including its local database data and locally built application images:
+
+```bash
+docker compose --env-file .env.docker down --volumes --remove-orphans --rmi local
+```
+
+The last command permanently deletes all accounts, configurations, and other data stored in the Docker volumes. Shared PostgreSQL and Redis base images and Docker's shared build cache are retained. To follow application logs without stopping anything, run `docker compose --env-file .env.docker logs -f app`.
 
 ## Manual local setup
 
