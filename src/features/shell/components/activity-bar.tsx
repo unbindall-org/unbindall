@@ -5,7 +5,6 @@ import type { Session } from "next-auth";
 import { BookOpenCheck, Compass, House, LogIn, LogOut, Settings, ShieldCheck, ShieldUser } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@/components/logo";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -103,7 +102,6 @@ export function ActivityBar({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onOpenAccount}><ShieldCheck />{t("Account & Daten")}</DropdownMenuItem>
-            <ThemeSwitcher />
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => signOut()}><LogOut />{t("Abmelden")}</DropdownMenuItem>
           </DropdownMenuContent>

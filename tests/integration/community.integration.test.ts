@@ -70,6 +70,16 @@ describe("Community-Router mit PostgreSQL", () => {
     expect(detail.versions).toHaveLength(1);
   });
 
+  it("liefert den Beliebt-Feed nach dem abklingenden Score aus", async () => {
+    const authorId = await registeredUser("trending@example.com", "trending_author");
+    const post = await caller(authorId).community.publish(publishInput());
+
+    const feed = await caller().community.feed({ scope: "trending", cursor: 0 });
+
+    expect(feed.items).toHaveLength(1);
+    expect(feed.items[0]).toMatchObject({ slug: post.slug });
+  });
+
   it("hält nicht gelistete Beiträge aus dem Feed heraus, aber unter ihrem Link erreichbar", async () => {
     const authorId = await registeredUser("unlisted@example.com", "unlisted_author");
     const post = await caller(authorId).community.publish(publishInput({ visibility: "unlisted" }));

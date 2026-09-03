@@ -73,7 +73,7 @@ function ConfigOutlineComponent({
   const progress = totalCount ? Math.round((activeCount / totalCount) * 100) : 0;
 
   return (
-    <nav className="outline" aria-label={t("Gliederung dieser Config")}>
+    <nav className="config-outline" aria-label={t("Gliederung dieser Config")}>
       <p className="outline-title">{t("IN DIESER CONFIG")}</p>
 
       <div className="outline-scroll">

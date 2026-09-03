@@ -20,13 +20,15 @@ export function hashFiles(files: PublishedFileInput[] | PublishedFile[]) {
  * next to the pure function it mirrors so the two cannot drift unnoticed.
  */
 const trendingExpression = sql`(
-  ${communityPosts.likeCount} * ${rankingWeights.like}
-  + ${communityPosts.adoptCount} * ${rankingWeights.adopt}
-  + ${communityPosts.commentCount} * ${rankingWeights.comment}
+  ${communityPosts.likeCount}::double precision * ${rankingWeights.like}::double precision
+  + ${communityPosts.adoptCount}::double precision * ${rankingWeights.adopt}::double precision
+  + ${communityPosts.commentCount}::double precision * ${rankingWeights.comment}::double precision
 ) / power(
-  greatest(extract(epoch from (now() - coalesce(${communityPosts.publishedAt}, ${communityPosts.createdAt}))) / 3600, 0)
-  + ${rankingOffsetHours},
-  ${rankingGravity}
+  greatest(
+    extract(epoch from (now() - coalesce(${communityPosts.publishedAt}, ${communityPosts.createdAt}))) / 3600,
+    0
+  )::double precision + ${rankingOffsetHours}::double precision,
+  ${rankingGravity}::double precision
 )`;
 
 const authorSelection = {

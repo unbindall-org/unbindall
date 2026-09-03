@@ -23,6 +23,7 @@
     "icons:render": "node scripts/render-icons.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed:community": "node scripts/seed-community.mjs",
     "db:studio": "drizzle-kit studio",
     "redis:start": "bash scripts/dev/redis.sh start",
     "redis:stop": "bash scripts/dev/redis.sh stop",

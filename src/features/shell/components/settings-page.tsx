@@ -1,9 +1,10 @@
 "use client";
 
-import { AtSign, BookOpenCheck, Languages, Library, ShieldCheck, Trash2, User } from "lucide-react";
+import { AtSign, BookOpenCheck, Languages, Library, ShieldCheck, Sun, Trash2, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Switch } from "@/components/ui/switch";
 
 export function SettingsPage({
@@ -45,6 +46,11 @@ export function SettingsPage({
             <span className="settings-row-icon"><Languages size={16} /></span>
             <div><strong>{t("Sprache")}</strong><p>{t("Sprache der Oberfläche und der Config-Kommentare.")}</p></div>
             <LanguageSwitcher />
+          </div>
+          <div className="settings-row">
+            <span className="settings-row-icon"><Sun size={16} /></span>
+            <div><strong>{t("Light Mode")}</strong><p>{t("Zwischen hellem und dunklem Design wechseln.")}</p></div>
+            <ThemeSwitcher />
           </div>
           <div className="settings-row">
             <span className="settings-row-icon"><BookOpenCheck size={16} /></span>

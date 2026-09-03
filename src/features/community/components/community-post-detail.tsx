@@ -60,6 +60,8 @@ export function CommunityPostDetail({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [showFullFile, setShowFullFile] = useState(false);
 
   const detailQuery = useQuery(trpc.community.bySlug.queryOptions({ slug }, {
     retry: false,
@@ -135,6 +137,13 @@ export function CommunityPostDetail({
   }
 
   const { post, viewer, files, versions } = data;
+  const selectedFile = files.find((file) => file.name === selectedFileName) ?? files[0];
+  const selectedFileLines = selectedFile?.rawConfig.split("\n") ?? [];
+
+  function selectFile(name: string) {
+    setSelectedFileName(name);
+    setShowFullFile(false);
+  }
 
   return (
     <div className="community">
@@ -212,28 +221,48 @@ export function CommunityPostDetail({
           <ul>
             {files.map((file) => {
               const Icon = configTypeIcons[file.configType];
+              const selected = selectedFile?.name === file.name;
               return (
                 <li key={file.name}>
-                  <span className="post-file-icon"><Icon size={16} /></span>
-                  <div>
-                    <strong>{file.name}</strong>
-                    <small>{t(getConfigTypeDefinition(file.configType).label)}</small>
-                  </div>
-                  <span className="post-file-lines">
-                    {t("countLines", { count: file.rawConfig.split("\n").length })}
-                  </span>
+                  <button
+                    type="button"
+                    className={selected ? "post-file-button is-active" : "post-file-button"}
+                    aria-pressed={selected}
+                    aria-controls="community-file-preview"
+                    aria-label={t("filePreviewLabel", { name: file.name })}
+                    onClick={() => selectFile(file.name)}
+                  >
+                    <span className="post-file-icon"><Icon size={16} /></span>
+                    <span className="post-file-copy">
+                      <strong>{file.name}</strong>
+                      <small>{t(getConfigTypeDefinition(file.configType).label)}</small>
+                    </span>
+                    <span className="post-file-lines">
+                      {t("countLines", { count: file.rawConfig.split("\n").length })}
+                    </span>
+                  </button>
                 </li>
               );
             })}
           </ul>
         </section>
 
-        {files[0] && (
-          <section className="post-preview">
-            <h2 className="section-title">{t("Vorschau")}</h2>
-            <pre className="post-code"><code>{files[0].rawConfig.split("\n").slice(0, 40).join("\n")}</code></pre>
-            {files[0].rawConfig.split("\n").length > 40 && (
-              <p className="compose-hint">{t("Gekürzte Vorschau. Übernimm den Beitrag, um alles zu sehen.")}</p>
+        {selectedFile && (
+          <section className="post-preview" id="community-file-preview">
+            <h2 className="section-title">{t("Vorschau")}: {selectedFile.name}</h2>
+            <pre className="post-code"><code>{
+              (showFullFile ? selectedFileLines : selectedFileLines.slice(0, 40)).join("\n")
+            }</code></pre>
+            {selectedFileLines.length > 40 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ghost-button post-preview-toggle"
+                onClick={() => setShowFullFile((current) => !current)}
+              >
+                {showFullFile ? t("Vorschau einklappen") : t("Ganze Datei anzeigen")}
+              </Button>
             )}
           </section>
         )}

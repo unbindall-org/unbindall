@@ -55,6 +55,7 @@ Then run:
 ```bash
 pnpm install
 pnpm db:migrate
+pnpm db:seed:community # optional: Demo-Beiträge für die Community
 pnpm dev
 ```
 
@@ -75,6 +76,7 @@ pnpm test:db:down     # remove the test database and volumes
 pnpm build            # type check and production build
 pnpm db:generate      # generate a migration from the Drizzle schema
 pnpm db:migrate       # apply pending migrations
+pnpm db:seed:community # idempotent community demo data
 pnpm db:studio        # open the database UI
 ```
 
