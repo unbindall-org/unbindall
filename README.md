@@ -6,7 +6,7 @@ A responsive Next.js generator for Counter-Strike 2 autoexec files. Settings are
 
 > **Project status: pre-launch alpha.** The application is intentionally not hosted yet. This repository is public to validate community interest before paying for permanent infrastructure. The planned domain is `unbindall.com`; until a deployment is announced here, links claiming to host an official live instance should not be trusted.
 
-![Unbindall social preview](src/app/opengraph-image.png)
+![Unbindall social preview](src/app/opengraph-image.png?v=2)
 
 ## Features
 
