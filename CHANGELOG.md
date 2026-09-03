@@ -17,3 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Translated repository documentation and contribution templates to English.
 - Restored Next.js production-build type checking for direct `next build` calls.
+- Marked the repository as a pre-launch alpha and documented `unbindall.com` as the planned domain.
+- Added repository metadata and a visible CI status badge for public sharing.
+- Classified the shadcn CLI as a development dependency.
+- Updated vulnerable transitive development dependencies and aligned Vite's esbuild peer dependency.
+
+### Fixed
+
+- Updated the authentication browser flow for the workspace start page.
+- Stopped tracking Next.js' generated `next-env.d.ts` file so browser tests no longer dirty the worktree.

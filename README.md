@@ -1,6 +1,12 @@
 # Unbindall — CS2 Autoexec Generator
 
+[![CI](https://github.com/unbindall-org/unbindall/actions/workflows/ci.yml/badge.svg)](https://github.com/unbindall-org/unbindall/actions/workflows/ci.yml)
+
 A responsive Next.js generator for Counter-Strike 2 autoexec files. Settings are searchable, can be inspected visually, imported from existing configuration files, downloaded, and saved to PostgreSQL through an Auth.js account.
+
+> **Project status: pre-launch alpha.** The application is intentionally not hosted yet. This repository is public to validate community interest before paying for permanent infrastructure. The planned domain is `unbindall.com`; until a deployment is announced here, links claiming to host an official live instance should not be trusted.
+
+![Unbindall social preview](src/app/opengraph-image.png)
 
 ## Features
 
@@ -48,7 +54,7 @@ Social sign-in buttons appear only when all variables for that provider are conf
 - Discord: set `AUTH_DISCORD_ID` and `AUTH_DISCORD_SECRET`. Register `http://localhost:3000/api/auth/callback/discord` in the Discord Developer Portal for local development, or `https://YOUR-DOMAIN/api/auth/callback/discord` in production.
 - Steam: set `STEAM_WEB_API_KEY` from the Steam Web API key page. Steam sign-in uses OpenID 2.0, not OAuth. The app derives the realm and callback from `AUTH_URL`; they do not need separate registration with Steam.
 
-`AUTH_URL` must exactly match the publicly reachable origin in every environment: `http://localhost:3000` locally or, for example, `https://unbindall.org` in production. In production, `AUTH_EXPECTED_HOST` must exactly match the expected hostname. Use `AUTH_TRUST_HOST=true` only behind a controlled reverse proxy; `TRUSTED_PROXY_COUNT` is the number of trusted proxy hops.
+`AUTH_URL` must exactly match the publicly reachable origin in every environment: `http://localhost:3000` locally or, for example, `https://unbindall.com` in production. In production, `AUTH_EXPECTED_HOST` must exactly match the expected hostname. Use `AUTH_TRUST_HOST=true` only behind a controlled reverse proxy; `TRUSTED_PROXY_COUNT` is the number of trusted proxy hops.
 
 Then run:
 
@@ -93,6 +99,8 @@ All sign-in methods use signed JWT cookies. Passwords are stored only as bcrypt 
 Redis rate-limits registration, credential sign-in, auth endpoints, the Steam start and callback, account deletion, exports, and configuration writes by IP and/or account. In production, protected operations fail closed when Redis is unavailable. Each account is limited to 25 configurations including trash and 10 MiB of logical data. Revision histories compact from 200 entries to the latest 100 states, and configuration documents accept at most 500 `commandValues`.
 
 ## Deployment
+
+There is currently no official public deployment. The instructions below document the intended production setup for a later launch; the legal placeholders in `src/features/legal/site.ts` and `src/app/datenschutz/page.tsx` must be replaced with the actual operator and provider details first.
 
 The server requires `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_EXPECTED_HOST`, and an explicit `AUTH_TRUST_HOST` decision. A trusted reverse proxy additionally requires `AUTH_TRUST_HOST=true` and `TRUSTED_PROXY_COUNT`. Discord requires `AUTH_DISCORD_ID` and `AUTH_DISCORD_SECRET` together; Steam optionally uses `STEAM_WEB_API_KEY`.
 

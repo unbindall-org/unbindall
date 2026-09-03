@@ -1,6 +1,21 @@
 {
   "name": "unbindall",
   "version": "0.1.0",
+  "description": "Open-source CS2 autoexec and config generator",
+  "keywords": [
+    "counter-strike-2",
+    "cs2",
+    "autoexec",
+    "config-generator"
+  ],
+  "homepage": "https://github.com/unbindall-org/unbindall#readme",
+  "bugs": {
+    "url": "https://github.com/unbindall-org/unbindall/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unbindall-org/unbindall.git"
+  },
   "license": "AGPL-3.0-only",
   "private": true,
   "engines": {
@@ -8,10 +23,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "tsc --noEmit && next build --webpack",
+    "build": "next typegen && tsc --noEmit && next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://unbindall:unbindall@127.0.0.1:55432/unbindall_test} vitest run --config vitest.integration.config.mts",
@@ -53,7 +68,6 @@
     "react-i18next": "^17.0.12",
     "redis": "^5.12.1",
     "server-only": "0.0.1",
-    "shadcn": "^4.19.0",
     "sonner": "2.0.7",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",
@@ -68,8 +82,10 @@
     "@types/react-dom": "19.2.2",
     "dotenv": "17.4.2",
     "drizzle-kit": "0.31.6",
+    "esbuild": "^0.28.0",
     "eslint": "9.37.0",
     "eslint-config-next": "16.3.3",
+    "shadcn": "^4.19.0",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vitest": "4.1.11"

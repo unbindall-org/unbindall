@@ -15,7 +15,7 @@ export const legal = {
     "Deutschland",
   ],
   /** Pflicht: E-Mail plus ein zweiter, schneller Kontaktweg. */
-  email: "PLATZHALTER: kontakt@unbindall.org",
+  email: "PLATZHALTER: kontakt@unbindall.com",
   secondContact: "PLATZHALTER: Telefonnummer oder Link zum Kontaktformular",
   /** Nur angeben, falls tatsächlich vorhanden. Sonst auf null lassen. */
   vatId: null as string | null,
@@ -33,7 +33,7 @@ export const legal = {
 } as const;
 
 export const siteName = "Unbindall";
-export const siteUrl = "https://unbindall.org";
+export const siteUrl = "https://unbindall.com";
 
 /** Erkennt die Platzhalter, damit sie im Markup hervorgehoben werden können. */
 export function isPlaceholder(value: string | null): boolean {

@@ -5,6 +5,7 @@ test("registriert sich, übernimmt eine lokale Config und lädt sie nach erneute
   const password = "browser-secret-123";
 
   await page.goto("/");
+  await page.getByRole("button", { name: "Meine Matchmaking Config Matchmaking Lokal", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Config-Name" })).toHaveValue("Meine Matchmaking Config");
   await page.getByLabel("Anmelden", { exact: true }).click();
 
