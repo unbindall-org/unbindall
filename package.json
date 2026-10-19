@@ -66,7 +66,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-i18next": "^17.0.12",
-    "redis": "^5.12.1",
+    "redis": "^6.2.1",
     "server-only": "0.0.1",
     "sonner": "2.0.7",
     "tailwind-merge": "^3.6.0",
